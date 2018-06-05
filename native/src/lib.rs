@@ -24,19 +24,24 @@ impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder<std::string::String>> {
         init(mut call) {
-            let path = call
+            let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            Ok(())
+            let wtr = String::new(P: AsRef<Path>(filename).unwrap());
+            let mut build = FuzzyPhraseSetBuilder::new(wtr).unwrap();
+            Ok(Some(build))
         }
     }
 
-    pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for Option<FuzzyPhraseSet<std::string::String>> {
-        init(mut call) {
-
-            Ok(())
-        }
-    }
+    // pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for Option<FuzzyPhraseSet<std::string::String>> {
+    //     init(mut call) {
+    //         let filename = call
+    //             .check_argument::<JsString>(0)
+    //             ?.value();
+    //         let set = unsafe { FuzzyPhraseSet::from_path(filename).unwrap() };
+    //         Ok(set)
+    //     }
+    // }
 }
 
 register_module!(m, {
