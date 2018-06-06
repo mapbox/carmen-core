@@ -2,12 +2,12 @@
 extern crate neon;
 extern crate fuzzy_phrase;
 
-use std::path::{Path};
-use std::string::String;
+use std::path::Path;
 
-use neon::vm::{JsResult, FunctionCall, This};
-use neon::js::{Value};
-use neon::js::JsString;
+use neon::mem::Handle;
+use neon::vm::{This, FunctionCall, JsResult};
+use neon::js::{JsFunction, Object, JsString, Value};
+use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
 
@@ -22,16 +22,20 @@ impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
   }
 }
 
-impl AsRef<Path> for String {}
+impl AsRef<Path> for String {
+    fn as_ref() -> &Path {
+        
+    }
+}
 // FuzzyPhraseSetBuilder::new!(fuzzy_phrase::FuzzyPhraseSetBuilder);
 
 declare_types! {
-    pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder<std::string::String<String>>> {
+    pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {
         init(mut call) {
             let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let path = filename.as_ref().unwrap();
+            let path = filename.as_ref();
             let mut build = FuzzyPhraseSetBuilder::new(path).unwrap();
             Ok(Some(build))
         }
@@ -50,5 +54,9 @@ declare_types! {
 
 register_module!(m, {
 
+    let class: Handle<JsClass<JsFuzzyPhraseSetBuilder>> = try!(JsFuzzyPhraseSetBuilder::class(m.scope));
+    let constructor: Handle<JsFunction<JsFuzzyPhraseSetBuilder>> = try!(class.constructor(m.scope));
+    try!(m.exports.set("FuzzyPhraseSetBuilder", constructor));
 
+    Ok(())
 });
