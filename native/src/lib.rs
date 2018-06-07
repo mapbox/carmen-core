@@ -22,21 +22,15 @@ impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
   }
 }
 
-impl AsRef<Path> for String {
-    fn as_ref() -> &Path {
-        
-    }
-}
-// FuzzyPhraseSetBuilder::new!(fuzzy_phrase::FuzzyPhraseSetBuilder);
-
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {
         init(mut call) {
             let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let path = filename.as_ref();
-            let mut build = FuzzyPhraseSetBuilder::new(path).unwrap();
+            // let path = filename.as_ref();
+            // let path = string::String::as_ref(filename);
+            let mut build = FuzzyPhraseSetBuilder::new(filename).unwrap();
             Ok(Some(build))
         }
     }
