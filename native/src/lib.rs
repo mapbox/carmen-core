@@ -5,8 +5,8 @@ extern crate fuzzy_phrase;
 use std::path::Path;
 
 use neon::mem::Handle;
-use neon::vm::{This, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value};
+use neon::vm::{This, Lock, FunctionCall, JsResult};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -28,10 +28,28 @@ declare_types! {
             let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            // let path = filename.as_ref();
-            // let path = string::String::as_ref(filename);
             let mut build = FuzzyPhraseSetBuilder::new(filename).unwrap();
             Ok(Some(build))
+        }
+
+        method insert(mut call) {
+            let word = call
+                .check_argument::<JsString>(0)
+                ?.value();
+            let scope = call.scope;
+            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            this.grab(|fuzzyphrasesetbuilder| {
+                match fuzzyphrasesetbuilder {
+                    Some(builder) => {
+                        builder.insert(&word).unwrap();
+                    },
+                    None => {
+                        panic!("FuzzyPhraseSetBuilder not available for insertion");
+                    }
+                }
+            });
+
+            Ok(JsUndefined::new().upcast())
         }
     }
 
