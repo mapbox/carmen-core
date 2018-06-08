@@ -38,34 +38,56 @@ declare_types! {
                 // ?.value();
 
             let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
                 //loop over contents and check string
                 // convert each to a rust string
                 // place each in a vector that I have locally
                 // once i have the rust vector then I'll pass that to the insert function
                 // maybe weird moving from string => &str
             for word in phrase {
-                word.check_argument::<JsString>(0);
-                // ?.value();
 
-                // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
-                // this.grab(|fuzzyphrasesetbuilder| {
-                //     match fuzzyphrasesetbuilder {
-                //         Some(builder) => {
-                //             builder.insert(&word).unwrap();
-                //         },
-                //         None => {
-                //             panic!("FuzzyPhraseSetBuilder not available for insertion");
-                //         }
-                //     }
-                // });
+                let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+
+                // convert string => &str
+                let string_word = format!(word);
+                let immutable_word = &string_word;
+
+                // place word in a vector
+                this.grab(|fuzzyphrasesetbuilder| {
+                    match fuzzyphrasesetbuilder {
+                        Some(builder) => {
+                            // once referencing the vector, insert the word
+                            builder.insert(immutable_word).unwrap();
+                        },
+                        None => {
+                            panic!("FuzzyPhraseSetBuilder not available for insertion");
+                        }
+                    }
+                });
             };
-
-
-
-
             Ok(JsUndefined::new().upcast())
         }
+
+        // method insert_str() {
+        //
+        // }
+
+        // method finish(mut call) {
+        //     let scope = call.scope;
+        //         let mut this: Handle<JsSetBuilder> = call.arguments.this(scope);
+        //
+        //         this.grab(|setbuilder| {
+        //             match setbuilder.take() {
+        //                 Some(builder) => {
+        //                     builder.finish();
+        //                 },
+        //                 None => {
+        //                     panic!("SetBuilder not available for finish()");
+        //                 }
+        //             }
+        //         });
+        //     Ok(JsUndefined::new().upcast())
+        // }
     }
 
     // pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for Option<FuzzyPhraseSet<std::string::String>> {
