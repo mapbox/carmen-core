@@ -5,8 +5,8 @@ extern crate fuzzy_phrase;
 use std::path::Path;
 
 use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined};
+use neon::vm::{This, Lock, FunctionCall, JsResult, Throw};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -33,21 +33,36 @@ declare_types! {
         }
 
         method insert(mut call) {
-            let word = call
-                .check_argument::<JsString>(0)
-                ?.value();
+            let phrase = call
+                .check_argument::<JsArray>(0);
+                // ?.value();
+
             let scope = call.scope;
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
-            this.grab(|fuzzyphrasesetbuilder| {
-                match fuzzyphrasesetbuilder {
-                    Some(builder) => {
-                        builder.insert(&word).unwrap();
-                    },
-                    None => {
-                        panic!("FuzzyPhraseSetBuilder not available for insertion");
-                    }
-                }
-            });
+                //loop over contents and check string
+                // convert each to a rust string
+                // place each in a vector that I have locally
+                // once i have the rust vector then I'll pass that to the insert function
+                // maybe weird moving from string => &str
+            for word in phrase {
+                word.check_argument::<JsString>(0);
+                // ?.value();
+
+                // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+                // this.grab(|fuzzyphrasesetbuilder| {
+                //     match fuzzyphrasesetbuilder {
+                //         Some(builder) => {
+                //             builder.insert(&word).unwrap();
+                //         },
+                //         None => {
+                //             panic!("FuzzyPhraseSetBuilder not available for insertion");
+                //         }
+                //     }
+                // });
+            };
+
+
+
 
             Ok(JsUndefined::new().upcast())
         }
