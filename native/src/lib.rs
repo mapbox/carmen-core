@@ -94,5 +94,9 @@ register_module!(m, {
     let constructor: Handle<JsFunction<JsFuzzyPhraseSetBuilder>> = try!(class.constructor(m.scope));
     try!(m.exports.set("FuzzyPhraseSetBuilder", constructor));
 
+    let class: Handle<JsClass<JsFuzzyPhraseSet>> = try!(JsFuzzyPhraseSet::class(m.scope));
+    let constructor: Handle<JsFunction<JsFuzzyPhraseSet>> = try!(class.constructor(m.scope));
+    try!(m.exports.set("FuzzyPhraseSet", constructor));
+
     Ok(())
 });
