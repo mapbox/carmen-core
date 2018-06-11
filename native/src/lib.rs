@@ -62,7 +62,7 @@ declare_types! {
             Ok(JsUndefined::new().upcast())
         }
 
-        method finish(mut call) {
+        method finish(call) {
             let scope = call.scope;
                 let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
@@ -80,15 +80,15 @@ declare_types! {
         }
     }
 
-    // pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for Option<FuzzyPhraseSet<std::string::String>> {
-    //     init(mut call) {
-    //         let filename = call
-    //             .check_argument::<JsString>(0)
-    //             ?.value();
-    //         let set = unsafe { FuzzyPhraseSet::from_path(filename).unwrap() };
-    //         Ok(set)
-    //     }
-    // }
+    pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for FuzzyPhraseSet {
+        init(mut call) {
+            let filename = call
+                .check_argument::<JsString>(0)
+                ?.value();
+            let set = { FuzzyPhraseSet::from_path(filename).unwrap() };
+            Ok(set)
+        }
+    }
 }
 
 register_module!(m, {
