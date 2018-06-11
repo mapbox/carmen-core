@@ -20,7 +20,6 @@ impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
   }
 }
 
-
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {
         init(mut call) {
@@ -32,10 +31,7 @@ declare_types! {
         }
 
         method insert(mut call) {
-            let phrase_array = call
-                .check_argument::<JsArray>(0)?;
-
-            // let &mut scope = call.scope;
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
 
             let mut v: Vec<String> = Vec::new();
 
@@ -48,26 +44,11 @@ declare_types! {
             }
 
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
-                //loop over contents and check string
-                // convert each to a rust string
-                // place each in a vector that I have locally
-                // once i have the rust vector then I'll pass that to the insert function
-                // maybe weird moving from string => &str
 
-            // for word in phrase {
-
-                // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
-
-                // convert string => &str
-                // let string_word = format!(word);
-                // let immutable_word = &word;
-
-                // place word in a vector
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        // once referencing the vector, insert the word
-                        let mut v2: Vec<&str> = v.into_iter().map(
+                        let mut v2: Vec<&str> = v.iter().map(
                             |el| el.as_str()
                         ).collect();
 
@@ -78,7 +59,6 @@ declare_types! {
                     }
                 }
             });
-            // };
             Ok(JsUndefined::new().upcast())
         }
 
