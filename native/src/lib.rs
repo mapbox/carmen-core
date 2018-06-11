@@ -26,11 +26,11 @@ declare_types! {
             let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let mut build = FuzzyPhraseSetBuilder::new(filename).unwrap();
+            let build = FuzzyPhraseSetBuilder::new(filename).unwrap();
             Ok(Some(build))
         }
 
-        method insert(mut call) {
+        method insert(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
 
             let mut v: Vec<String> = Vec::new();
@@ -62,26 +62,22 @@ declare_types! {
             Ok(JsUndefined::new().upcast())
         }
 
-        // method insert_str() {
-        //
-        // }
+        method finish(mut call) {
+            let scope = call.scope;
+                let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
-        // method finish(mut call) {
-        //     let scope = call.scope;
-        //         let mut this: Handle<JsSetBuilder> = call.arguments.this(scope);
-        //
-        //         this.grab(|setbuilder| {
-        //             match setbuilder.take() {
-        //                 Some(builder) => {
-        //                     builder.finish();
-        //                 },
-        //                 None => {
-        //                     panic!("SetBuilder not available for finish()");
-        //                 }
-        //             }
-        //         });
-        //     Ok(JsUndefined::new().upcast())
-        // }
+                this.grab(|fuzzyphrasesetbuilder| {
+                    match fuzzyphrasesetbuilder.take() {
+                        Some(builder) => {
+                            builder.finish();
+                        },
+                        None => {
+                            panic!("SetBuilder not available for finish()");
+                        }
+                    }
+                });
+            Ok(JsUndefined::new().upcast())
+        }
     }
 
     // pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for Option<FuzzyPhraseSet<std::string::String>> {
