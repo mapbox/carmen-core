@@ -48,10 +48,6 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        // let mut v2: Vec<&str> = v.iter().map(
-                            // |el| el.as_str()
-                        // ).collect();
-
                         builder.insert(&v[..]).unwrap();
                     },
                     None => {
@@ -59,7 +55,7 @@ declare_types! {
                     }
                 };
             });
-            
+
             Ok(JsUndefined::new().upcast())
         }
 
