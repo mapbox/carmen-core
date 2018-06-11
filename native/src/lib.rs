@@ -48,17 +48,18 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        let mut v2: Vec<&str> = v.iter().map(
-                            |el| el.as_str()
-                        ).collect();
+                        // let mut v2: Vec<&str> = v.iter().map(
+                            // |el| el.as_str()
+                        // ).collect();
 
-                        builder.insert(&v2[..]).unwrap();
+                        builder.insert(&v[..]).unwrap();
                     },
                     None => {
                         panic!("FuzzyPhraseSetBuilder not available for insertion");
                     }
-                }
+                };
             });
+            
             Ok(JsUndefined::new().upcast())
         }
 
