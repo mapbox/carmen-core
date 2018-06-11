@@ -5,8 +5,8 @@ extern crate fuzzy_phrase;
 use std::path::Path;
 
 use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult, Throw};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray};
+use neon::vm::{This, Lock, FunctionCall, JsResult, Throw, VmResult};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsValue};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -22,6 +22,7 @@ impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
   }
 }
 
+
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {
         init(mut call) {
@@ -33,38 +34,50 @@ declare_types! {
         }
 
         method insert(mut call) {
-            let phrase = call
-                .check_argument::<JsArray>(0);
-                // ?.value();
+            let mut phrase_array = call
+                .check_argument::<JsArray>(0)?;
 
             let scope = call.scope;
-            // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            let v: Vec<String> = Vec::new();
+
+            for i in (0..phrase_array.len()) {
+                let mut string = String::new();
+
+                phrase_array.get(scope, i)
+                ?.check::<JsString>()
+                ?.value();
+                
+                v.push(string);
+            }
+
                 //loop over contents and check string
                 // convert each to a rust string
                 // place each in a vector that I have locally
                 // once i have the rust vector then I'll pass that to the insert function
                 // maybe weird moving from string => &str
-            for word in phrase {
 
-                let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            // for word in phrase {
+
+                // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
                 // convert string => &str
-                let string_word = format!(word);
-                let immutable_word = &string_word;
+                // let string_word = format!(word);
+                // let immutable_word = &word;
 
                 // place word in a vector
-                this.grab(|fuzzyphrasesetbuilder| {
-                    match fuzzyphrasesetbuilder {
-                        Some(builder) => {
-                            // once referencing the vector, insert the word
-                            builder.insert(immutable_word).unwrap();
-                        },
-                        None => {
-                            panic!("FuzzyPhraseSetBuilder not available for insertion");
-                        }
+            this.grab(|fuzzyphrasesetbuilder| {
+                match fuzzyphrasesetbuilder {
+                    Some(builder) => {
+                        // once referencing the vector, insert the word
+                        builder.insert(&v).unwrap();
+                    },
+                    None => {
+                        panic!("FuzzyPhraseSetBuilder not available for insertion");
                     }
-                });
-            };
+                }
+            });
+            // };
             Ok(JsUndefined::new().upcast())
         }
 
