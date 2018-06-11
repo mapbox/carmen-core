@@ -85,6 +85,18 @@ declare_types! {
             let set = { FuzzyPhraseSet::from_path(filename).unwrap() };
             Ok(set)
         }
+
+        method from_path(call) {
+
+        }
+        // 
+        // method contains(call) {
+        //
+        // }
+        //
+        // method contains_prefix() {
+        //
+        // }
     }
 }
 
