@@ -88,12 +88,12 @@ declare_types! {
 
         method from_path(call) {
             // the directory path of the set with all subcomponents at predictable URLS
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+            let path_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
 
             let mut v: Vec<String> = Vec::new();
 
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
+            for i in 0..path_array.len() {
+                let string = path_array.get(call.scope, i)
                 ?.check::<JsString>()
                 ?.value();
 
@@ -102,20 +102,20 @@ declare_types! {
             Ok(JsUndefined::new().upcast())
         }
 
-        method contains(call) {
-            let word = call
-                .check_argument::<JsString>(0)
-                ?.value();
-            let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
-
-            Ok(JsBoolean::new(
-                scope,
-                this.grab(|set| {
-                    set.contains(&word).unwrap()
-                })
-            ).upcast())
-        }
+        // method contains(call) {
+        //     let word = call
+        //         .check_argument::<JsString>(0)
+        //         ?.value();
+        //     let scope = call.scope;
+        //     let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
+        //
+        //     Ok(JsBoolean::new(
+        //         scope,
+        //         this.grab(|set| {
+        //             set.contains(&word).unwrap()
+        //         })
+        //     ).upcast())
+        // }
         //
         // method contains_prefix() {
         //
