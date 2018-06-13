@@ -86,23 +86,34 @@ declare_types! {
             Ok(set)
         }
 
-        method contains(call) {
+        method contains(mut call) {
             let word = call
                 .check_argument::<JsString>(0)
                 ?.value();
             let scope = call.scope;
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
-
+            // word = &word.as_str();
             Ok(JsBoolean::new(
                 scope,
                 this.grab(|set| {
-                    set.contains(&word).unwrap()
+                    set.contains(&[word]).unwrap()
                 })
             ).upcast())
         }
 
         method contains_prefix() {
-
+            let word = call
+                .check_argument::<JsString>(0)
+                ?.value();
+            let scope = call.scope;
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
+            // word = &word.as_str();
+            Ok(JsBoolean::new(
+                scope,
+                this.grab(|set| {
+                    set.contains_prefix(&[word]).unwrap()
+                })
+            ).upcast())
         }
     }
 }
