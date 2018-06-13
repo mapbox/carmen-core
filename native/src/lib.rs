@@ -4,7 +4,7 @@ extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsValue};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -79,27 +79,11 @@ declare_types! {
 
     pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for FuzzyPhraseSet {
         init(mut call) {
-            let filename = call
+            let filepath = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let set = { FuzzyPhraseSet::from_path(filename).unwrap() };
+            let set = { FuzzyPhraseSet::from_path(filepath).unwrap() };
             Ok(set)
-        }
-
-        method from_path(call) {
-            // the directory path of the set with all subcomponents at predictable URLS
-            let path_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
-
-            let mut v: Vec<String> = Vec::new();
-
-            for i in 0..path_array.len() {
-                let string = path_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
-
-                v.push(string);
-            }
-            Ok(JsUndefined::new().upcast())
         }
 
         // method contains(call) {
