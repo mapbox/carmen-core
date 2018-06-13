@@ -4,7 +4,7 @@ extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsValue};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -66,7 +66,7 @@ declare_types! {
                 this.grab(|fuzzyphrasesetbuilder| {
                     match fuzzyphrasesetbuilder.take() {
                         Some(builder) => {
-                            builder.finish();
+                            builder.finish().unwrap();
                         },
                         None => {
                             panic!("SetBuilder not available for finish()");
@@ -86,24 +86,24 @@ declare_types! {
             Ok(set)
         }
 
-        // method contains(call) {
-        //     let word = call
-        //         .check_argument::<JsString>(0)
-        //         ?.value();
-        //     let scope = call.scope;
-        //     let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
-        //
-        //     Ok(JsBoolean::new(
-        //         scope,
-        //         this.grab(|set| {
-        //             set.contains(&word).unwrap()
-        //         })
-        //     ).upcast())
-        // }
-        //
-        // method contains_prefix() {
-        //
-        // }
+        method contains(call) {
+            let word = call
+                .check_argument::<JsString>(0)
+                ?.value();
+            let scope = call.scope;
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
+
+            Ok(JsBoolean::new(
+                scope,
+                this.grab(|set| {
+                    set.contains(&word).unwrap()
+                })
+            ).upcast())
+        }
+
+        method contains_prefix() {
+
+        }
     }
 }
 
