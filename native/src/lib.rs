@@ -86,32 +86,48 @@ declare_types! {
             Ok(set)
         }
 
-        method contains(mut call) {
-            let word = call
-                .check_argument::<JsString>(0)
+        method contains(call) {
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+
+            let mut v: Vec<String> = Vec::new();
+
+            for i in 0..phrase_array.len() {
+                let string = phrase_array.get(call.scope, i)
+                ?.check::<JsString>()
                 ?.value();
-            let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
-            // word = &word.as_str();
+
+                v.push(string);
+            }
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
             Ok(JsBoolean::new(
-                scope,
+                call.scope,
                 this.grab(|set| {
-                    set.contains(&[word]).unwrap()
+                    set.contains(&v[..]).unwrap()
                 })
             ).upcast())
         }
 
-        method contains_prefix() {
-            let word = call
-                .check_argument::<JsString>(0)
+        method contains_prefix(call) {
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+
+            let mut v: Vec<String> = Vec::new();
+
+            for i in 0..phrase_array.len() {
+                let string = phrase_array.get(call.scope, i)
+                ?.check::<JsString>()
                 ?.value();
-            let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(scope);
-            // word = &word.as_str();
+
+                v.push(string);
+            }
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
             Ok(JsBoolean::new(
-                scope,
+                call.scope,
                 this.grab(|set| {
-                    set.contains_prefix(&[word]).unwrap()
+                    set.contains_prefix(&v[..]).unwrap()
                 })
             ).upcast())
         }
