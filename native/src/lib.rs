@@ -4,7 +4,7 @@ extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -130,6 +130,30 @@ declare_types! {
                     set.contains_prefix(&v[..]).unwrap()
                 })
             ).upcast())
+        }
+
+        method fuzzy_match(mut call) {
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsNumber>()?;
+            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsNumber>()?;
+
+            let mut v: Vec<String> = Vec::new();
+
+            for i in 0..phrase_array.len() {
+                let string = phrase_array.get(call.scope, i)
+                ?.check::<JsString>()
+                ?.value();
+
+                v.push(string);
+            }
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            this.grab(|set| {
+                set.fuzzy_match(&v[..], max_word_dist, max_phrase_dist).unwrap()
+            });
+
+            Ok(JsUndefined::new().upcast())
         }
     }
 }
