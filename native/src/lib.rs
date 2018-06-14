@@ -136,8 +136,6 @@ declare_types! {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
             let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
                 ?.value() as u8;
-            // let u8_max_word_dist: u8 = max_word_dist as u8;
-            // max_word_dist: Handle<JsBuffer> = (JsBuffer::new(call.scope, call.arguments.require(call.scope, 1)? as u8));
             let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
                 ?.value() as u8;
 
@@ -150,13 +148,6 @@ declare_types! {
 
                 v.push(string);
             }
-
-            // let data: Handle<JsBuffer> = try!(JsBuffer::new(scope, chunk.data.len() as u32));
-            //
-            // for (i, v) in chunk.data.iter().enumerate() {
-            //     try!(data.set(i as u32, JsInteger::new(scope, *v as i32)));
-            // }
-            //
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
