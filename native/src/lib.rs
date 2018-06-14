@@ -4,7 +4,7 @@ extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -134,8 +134,8 @@ declare_types! {
 
         method fuzzy_match(mut call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
-            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsNumber>()?;
-            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsNumber>()?;
+            let max_word_dist = call.arguments.require(call.scope, 1)?.check::<JsInteger>()?;
+            let max_phrase_dist = call.arguments.require(call.scope, 2)?.check::<JsInteger>()?;
 
             let mut v: Vec<String> = Vec::new();
 
@@ -146,6 +146,14 @@ declare_types! {
 
                 v.push(string);
             }
+
+            // let data: Handle<JsBuffer> = try!(JsBuffer::new(scope, chunk.data.len() as u32));
+            //
+            // for (i, v) in chunk.data.iter().enumerate() {
+            //     try!(data.set(i as u32, JsInteger::new(scope, *v as i32)));
+            // }
+            //
+            // Ok(data)
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
