@@ -55,8 +55,14 @@ declare_types! {
                     }
                 };
             });
-
-            Ok(JsUndefined::new().upcast())
+            // needs error handling
+            // match parse() {
+                Ok(JsUndefined::new().upcast())
+            //     Err(e) => {
+            //         println!("{:?}", e);
+            //         Ok((JsNull::new().as_value(scope)))
+            //     }
+            // }
         }
 
         method finish(call) {
