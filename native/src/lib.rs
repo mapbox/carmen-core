@@ -132,7 +132,7 @@ declare_types! {
             ).upcast())
         }
 
-        method fuzzy_match(mut call) {
+        method fuzzy_match(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
             let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
                 ?.value() as u8;
@@ -153,6 +153,32 @@ declare_types! {
 
             this.grab(|set| {
                 set.fuzzy_match(&v[..], max_word_dist, max_phrase_dist).unwrap()
+            });
+
+            Ok(JsUndefined::new().upcast())
+        }
+
+        method fuzzy_match_prefix(call) {
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
+                ?.value() as u8;
+            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
+                ?.value() as u8;
+
+            let mut v: Vec<String> = Vec::new();
+
+            for i in 0..phrase_array.len() {
+                let string = phrase_array.get(call.scope, i)
+                ?.check::<JsString>()
+                ?.value();
+
+                v.push(string);
+            }
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            this.grab(|set| {
+                set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist).unwrap()
             });
 
             Ok(JsUndefined::new().upcast())
