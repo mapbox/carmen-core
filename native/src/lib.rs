@@ -4,7 +4,7 @@ extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsValue};
 use neon::js::class::{JsClass, Class};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
@@ -45,24 +45,36 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
 
+            // let mut result: JsResult<JsValue> = JsUndefined::new().upcast();
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
                         builder.insert(&v[..]).unwrap();
+                        // match builder.insert(&v[..]) {
+                        //     Ok(()) => {},
+                        //     Err(e) => {
+                        //         result = JsString::new(call.scope, e.description());
+                        //         println!("{:?}", e);
+                        //     }
+                        // }
                     },
                     None => {
+                        // result = JsString::new(call.scope, "ERROR");
                         panic!("FuzzyPhraseSetBuilder not available for insertion");
                     }
                 };
             });
+
+            // Ok(result.unwrap())
             // needs error handling
             // match parse() {
-                Ok(JsUndefined::new().upcast())
+            //     Ok(JsUndefined::new().upcast()),
             //     Err(e) => {
             //         println!("{:?}", e);
             //         Ok((JsNull::new().as_value(scope)))
             //     }
             // }
+            Ok(JsUndefined::new().upcast())
         }
 
         method finish(call) {
