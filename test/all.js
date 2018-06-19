@@ -19,7 +19,7 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     build.insert(["bruce"]);
     build.insert(["clarence"]);
     build.insert(["stevie"]);
-    build.insert({});
+    // build.insert({});
     build.insert(["the", "quick", "brown", "fox", "jumped", "over", "the", "lazy", "dog"])
 
     build.finish();
