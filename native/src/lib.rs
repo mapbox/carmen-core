@@ -3,9 +3,10 @@ extern crate neon;
 extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult};
+use neon::vm::{This, Lock, FunctionCall, JsResult, Throw};
 use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsValue};
 use neon::js::class::{JsClass, Class};
+use neon::js::error::{Kind, JsError};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
 
@@ -49,32 +50,22 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        builder.insert(&v[..]).unwrap();
-                        // match builder.insert(&v[..]) {
-                        //     Ok(()) => {},
-                        //     Err(e) => {
-                        //         result = JsString::new(call.scope, e.description());
-                        //         println!("{:?}", e);
-                        //     }
-                        // }
+                        // builder.insert(&v[..])?;
+                        match builder.insert(&v[..]) {
+                            Ok(()) => {
+                                Ok(JsUndefined::new().upcast())
+                            },
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
+                        }
                     },
                     None => {
-                        // result = JsString::new(call.scope, "ERROR");
-                        panic!("FuzzyPhraseSetBuilder not available for insertion");
+                        JsError::throw(Kind::TypeError, "ERROR ERROR")
                     }
-                };
-            });
-
-            // Ok(result.unwrap())
-            // needs error handling
-            // match parse() {
-            //     Ok(JsUndefined::new().upcast()),
-            //     Err(e) => {
-            //         println!("{:?}", e);
-            //         Ok((JsNull::new().as_value(scope)))
-            //     }
-            // }
-            Ok(JsUndefined::new().upcast())
+                }
+            })
         }
 
         method finish(call) {
