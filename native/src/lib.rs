@@ -3,8 +3,8 @@ extern crate neon;
 extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult, Throw};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsValue};
+use neon::vm::{This, Lock, FunctionCall, JsResult};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
@@ -88,11 +88,32 @@ declare_types! {
 
     pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for FuzzyPhraseSet {
         init(mut call) {
+            // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
+            // match call.check_argument::<JsString>(0) {
+            //     Ok(filepath) => {
+            //         filepath = filepath.value();
+            //         let set = {FuzzyPhraseSet::from_path(filepath).unwrap()};
+            //         Ok(set)
+            //     },
+            //     Err(e) =>  {
+            //         println!("{:?}", e);
+            //         JsError::throw(Kind::TypeError, e.description());
+            //     }
+            // }
             let filepath = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let set = { FuzzyPhraseSet::from_path(filepath).unwrap() };
-            Ok(set)
+            // let set = { FuzzyPhraseSet::from_path(filepath) };
+            match FuzzyPhraseSet::from_path(filepath) {
+                Ok(set) => {
+                    Ok(set)
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
+            // Ok(())
         }
 
         method contains(call) {
