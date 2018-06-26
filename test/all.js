@@ -29,9 +29,9 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     t.ok(set.contains(["the", "quick", "brown", "fox", "jumped", "over", "the", "lazy", "dog"]));
     t.notOk(set.contains(["FOOBAR"]));
 
-    t.throws(() => { new fuzzy.FuzzyPhraseSet() });
-    t.throws(() => { new fuzzy.FuzzyPhraseSet("/etc/passwd") });
-    t.throws(() => { new fuzzy.FuzzyPhraseSet({}) });
-    t.throws(() => { new fuzzy.FuzzyPhraseSet(7) });
+    t.throws(() => { new fuzzy.FuzzyPhraseSet()}, "throws on not enough arguments");
+    t.throws(() => { new fuzzy.FuzzyPhraseSet("/etc/passwd")}, "throws on not a directory");
+    t.throws(() => { new fuzzy.FuzzyPhraseSet({})}, "throws on wrong type argument");
+    t.throws(() => { new fuzzy.FuzzyPhraseSet(7)}, "throws on wrong type arguments");
     t.end();
 })
