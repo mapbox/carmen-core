@@ -27,7 +27,7 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     let set = new fuzzy.FuzzyPhraseSet("set.fuzzy");
     set.contains(["bruce", "clarence", "stevie"]);
     set.contains(["the", "quick", "brown", "fox", "jumped", "over", "the", "lazy", "dog"]);
-    // set.contains("FOOBAR");
+    t.notOk(set.contains(["FOOBAR"]));
 
     t.throws(() => { new fuzzy.FuzzyPhraseSet() });
     t.throws(() => { new fuzzy.FuzzyPhraseSet("/etc/passwd") });
