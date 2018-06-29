@@ -62,7 +62,7 @@ declare_types! {
                         }
                     },
                     None => {
-                        JsError::throw(Kind::TypeError, "ERROR ERROR")
+                        JsError::throw(Kind::TypeError, "unable to insert()")
                     }
                 }
             })
@@ -88,22 +88,9 @@ declare_types! {
 
     pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for FuzzyPhraseSet {
         init(mut call) {
-            // let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
-            // match call.check_argument::<JsString>(0) {
-            //     Ok(filepath) => {
-            //         filepath = filepath.value();
-            //         let set = {FuzzyPhraseSet::from_path(filepath).unwrap()};
-            //         Ok(set)
-            //     },
-            //     Err(e) =>  {
-            //         println!("{:?}", e);
-            //         JsError::throw(Kind::TypeError, e.description());
-            //     }
-            // }
             let filepath = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            // let set = { FuzzyPhraseSet::from_path(filepath) };
             match FuzzyPhraseSet::from_path(filepath) {
                 Ok(set) => {
                     Ok(set)
@@ -113,7 +100,6 @@ declare_types! {
                     JsError::throw(Kind::TypeError, e.description())
                 }
             }
-            // Ok(())
         }
 
         method contains(call) {
@@ -131,12 +117,18 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
-            Ok(JsBoolean::new(
-                call.scope,
-                this.grab(|set| {
-                    set.contains(&v[..]).unwrap()
-                })
-            ).upcast())
+            match set.contains(&v[..]).unwrap() {
+                Ok(JsBoolean::new(
+                    call.scope,
+                    this.grab(|set| {
+                        set.contains(&v[..]).unwrap()
+                    })
+                ).upcast()),
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
 
         method contains_prefix(call) {
