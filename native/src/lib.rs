@@ -261,11 +261,50 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
-            this.grab(|set| {
+            let result = this.grab(|set| {
                 set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist).unwrap()
             });
 
-            Ok(JsUndefined::new().upcast())
+            match result {
+                Ok(vec) => {
+                    let array = JsArray::new(
+                        call.scope,
+                        vec.len() as u32
+                    );
+                    for (i, item) in vec.iter().enumerate() {
+                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
+                        let object = JsObject::new(
+                            call.scope
+                        );
+                        let phrase = JsArray::new(
+                            call.scope,
+                            item.phrase.len() as u32
+                        );
+                        for (i, word) in item.phrase.iter().enumerate() {
+                            let string = JsString::new_or_throw(
+                                call.scope,
+                                word
+                            )?;
+                            phrase.set(i as u32, string)?;
+                        }
+                        object.set("phrase", phrase)?;
+
+                        let number = JsNumber::new(
+                            call.scope,
+                            item.edit_distance as f64
+                        );
+                        object.set("edit_distance", number)?;
+
+                        array.set(i as u32, object)?;
+                    }
+
+                    Ok(array.upcast())
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
     }
 }
