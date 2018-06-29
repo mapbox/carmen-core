@@ -262,7 +262,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist).unwrap()
+                set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist)
             });
 
             match result {
