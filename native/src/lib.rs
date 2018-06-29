@@ -117,18 +117,33 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
-            match set.contains(&v[..]).unwrap() {
-                Ok(JsBoolean::new(
-                    call.scope,
-                    this.grab(|set| {
-                        set.contains(&v[..]).unwrap()
-                    })
-                ).upcast()),
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
+            this.grab(|set| {
+                match set.contains(&v[..]) {
+                    Ok(response) => {
+                        Ok(JsBoolean::new(
+                            call.scope,
+                            response
+                        ).upcast())
+                    },
+                    Err(e) => {
+                        println!("{:?}", e);
+                        JsError::throw(Kind::TypeError, e.description())
+                    }
                 }
-            }
+            })
+
+            // match set.contains(&v[..]).unwrap() {
+            //     Ok(JsBoolean::new(
+            //         call.scope,
+            //         this.grab(|set| {
+            //             set.contains(&v[..]).unwrap()
+            //         })
+            //     ).upcast()),
+            //     Err(e) => {
+            //         println!("{:?}", e);
+            //         JsError::throw(Kind::TypeError, e.description())
+            //     }
+            // }
         }
 
         method contains_prefix(call) {
