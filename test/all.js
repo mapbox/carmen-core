@@ -34,31 +34,28 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     let phrase_vec = ["100", "main", "street"];
     t.ok(set.contains(phrase_vec), "FuzzyPhraseSet contains()");
 
-    t.notOk(set.contains(["x"]), "FuzzyPhraseSet contains()");
-    t.notOk(set.contains(["100","main"]), "FuzzyPhraseSet contains()");
-    t.notOk(set.contains(["100","main","s"]), "FuzzyPhraseSet contains()");
-    t.notOk(set.contains(["100","main","streetr"]), "FuzzyPhraseSet contains()");
-    t.notOk(set.contains(["100","main","street","r"]), "FuzzyPhraseSet contains()");
-    t.notOk(set.contains(["100","main","street","ave"]), "FuzzyPhraseSet contains()");
+    t.notOk(set.contains(["x"]), "FuzzyPhraseSet does not contains()");
+    t.notOk(set.contains(["100","main"]), "FuzzyPhraseSet does not contains()");
+    t.notOk(set.contains(["100","main","s"]), "FuzzyPhraseSet does not contains()");
+    t.notOk(set.contains(["100","main","streetr"]), "FuzzyPhraseSet does not contains()");
+    t.notOk(set.contains(["100","main","street","r"]), "FuzzyPhraseSet does not contains()");
+    t.notOk(set.contains(["100","main","street","ave"]), "FuzzyPhraseSet does not contains()");
 
     t.ok(set.contains_prefix(["100","main","street"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["200","main","street"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["100","main","ave"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["300","mlk","blvd"]), "FuzzyPhraseSet contains_prefix()");
 
-    t.ok(set.contains_prefix(["100","main","stree"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["200","main","stree"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["100","main","av"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["300","mlk","blv"]), "FuzzyPhraseSet contains_prefix()");
-
     t.ok(set.contains_prefix(["100","main"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["200","main"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["100","main"]), "FuzzyPhraseSet contains_prefix()");
     t.ok(set.contains_prefix(["300","mlk"]), "FuzzyPhraseSet contains_prefix()");
 
-    t.ok(!set.contains_prefix(["100","man"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(!set.contains_prefix(["400","main"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(!set.contains_prefix(["100","main","street","x"]), "FuzzyPhraseSet contains_prefix()");
+    t.notOk(set.contains_prefix(["100","man"]), "FuzzyPhraseSet does not contains_prefix()");
+    t.notOk(set.contains_prefix(["400","main"]), "FuzzyPhraseSet does not contains_prefix()");
+    t.notOk(set.contains_prefix(["100","main","street","x"]), "FuzzyPhraseSet does not contains_prefix()");
+
+    t.ok(set.fuzzy_match(["100", "man", "street"], 1, 1), "FuzzyPhraseSet fuzzy_match()");
 
     t.deepEquals(
         set.fuzzy_match(["100", "man", "street"], 1, 1),
