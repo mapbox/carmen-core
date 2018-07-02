@@ -1,6 +1,7 @@
 const fuzzy = require('../lib');
 const assert = require('assert');
 const tape = require('tape');
+const tmp = require('tmp');
 
 tape('build FuzzyPhraseSetBuilder', (t) => {
     let builder = new fuzzy.FuzzyPhraseSetBuilder("/tmp/set.fuzzy");
