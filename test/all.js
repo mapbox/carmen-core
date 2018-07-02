@@ -3,7 +3,7 @@ const assert = require('assert');
 const tape = require('tape');
 
 tape('build FuzzyPhraseSetBuilder', (t) => {
-    let builder = new fuzzy.FuzzyPhraseSetBuilder("set.fuzzy");
+    let builder = new fuzzy.FuzzyPhraseSetBuilder("/tmp/set.fuzzy");
     t.ok(builder, "FuzzyPhraseSetBuilder built");
     t.throws(() => { new fuzzy.FuzzyPhraseSetBuilder()}, "throws on not enough arguments");
     t.throws(() => { new fuzzy.FuzzyPhraseSetBuilder("/etc/passwd")}, "throws on not a directory");
@@ -13,8 +13,7 @@ tape('build FuzzyPhraseSetBuilder', (t) => {
 })
 
 tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
-    let builder = new fuzzy.FuzzyPhraseSetBuilder("set.fuzzy");
-    // ["the", "quick", "brown", "fox", "jumped", "over", "the", "lazy", "dog"]
+    let builder = new fuzzy.FuzzyPhraseSetBuilder("/tmp/set.fuzzy");
 
     builder.insert(["100","main","street"]);
     builder.insert(["200","main","street"]);
@@ -22,11 +21,11 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     builder.insert(["300","mlk","blvd"]);
     builder.finish();
 
-    let set = new fuzzy.FuzzyPhraseSet("set.fuzzy");
+    let set = new fuzzy.FuzzyPhraseSet("/tmp/set.fuzzy");
     t.ok(set.contains(["100","main","street"]), "FuzzyPhraseSet contains()");
     t.ok(set.contains(["200","main","street"]), "FuzzyPhraseSet contains()");
     t.ok(set.contains(["100","main","ave"]), "FuzzyPhraseSet contains()");
-    t.ok(set.contains(["300","mlk","blvd"]));
+    t.ok(set.contains(["300","mlk","blvd"]), "FuzzyPhraseSet contains()");
 
     t.ok(set.contains(["100","main","street"]), "FuzzyPhraseSet contains()");
     let phrase_static = ["100", "main", "street"];
