@@ -50,8 +50,8 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        // builder.insert(&v[..])?;
-                        match builder.insert(&v[..]) {
+                        // builder.insert(v.as_slice())?;
+                        match builder.insert(v.as_slice()) {
                             Ok(()) => {
                                 Ok(JsUndefined::new().upcast())
                             },
@@ -118,7 +118,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                match set.contains(&v[..]) {
+                match set.contains(v.as_slice()) {
                     Ok(response) => {
                         Ok(response)
                     },
@@ -151,7 +151,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                match set.contains_prefix(&v[..]) {
+                match set.contains_prefix(v.as_slice()) {
                     Ok(response) => {
                         Ok(response)
                     },
@@ -188,16 +188,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                // match set.fuzzy_match(&v[..], max_word_dist, max_phrase_dist) {
-                //     Ok(response) => {
-                //         Ok(response)
-                //     },
-                //     Err(e) => {
-                //         println!("{:?}", e);
-                //         JsError::throw(Kind::TypeError, e.description())
-                //     }
-                // }
-                set.fuzzy_match(&v[..], max_word_dist, max_phrase_dist)
+                set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist)
             });
 
             match result {
@@ -262,7 +253,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist)
+                set.fuzzy_match_prefix(v.as_slice(), max_word_dist, max_phrase_dist)
             });
 
             match result {
