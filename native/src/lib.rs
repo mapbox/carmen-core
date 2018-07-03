@@ -3,8 +3,8 @@ extern crate neon;
 extern crate fuzzy_phrase;
 
 use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult, Throw};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsValue};
+use neon::vm::{This, Lock, FunctionCall, JsResult};
+use neon::js::{JsFunction, Object, JsString, JsNumber, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsObject};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
@@ -50,8 +50,8 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        // builder.insert(&v[..])?;
-                        match builder.insert(&v[..]) {
+                        // builder.insert(v.as_slice())?;
+                        match builder.insert(v.as_slice()) {
                             Ok(()) => {
                                 Ok(JsUndefined::new().upcast())
                             },
@@ -62,7 +62,7 @@ declare_types! {
                         }
                     },
                     None => {
-                        JsError::throw(Kind::TypeError, "ERROR ERROR")
+                        JsError::throw(Kind::TypeError, "unable to insert()")
                     }
                 }
             })
@@ -70,18 +70,18 @@ declare_types! {
 
         method finish(call) {
             let scope = call.scope;
-                let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
-                this.grab(|fuzzyphrasesetbuilder| {
-                    match fuzzyphrasesetbuilder.take() {
-                        Some(builder) => {
-                            builder.finish().unwrap();
-                        },
-                        None => {
-                            panic!("SetBuilder not available for finish()");
-                        }
+            this.grab(|fuzzyphrasesetbuilder| {
+                match fuzzyphrasesetbuilder.take() {
+                    Some(builder) => {
+                        builder.finish().unwrap();
+                    },
+                    None => {
+                        panic!("SetBuilder not available for finish()");
                     }
-                });
+                }
+            });
             Ok(JsUndefined::new().upcast())
         }
     }
@@ -91,8 +91,15 @@ declare_types! {
             let filepath = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let set = { FuzzyPhraseSet::from_path(filepath).unwrap() };
-            Ok(set)
+            match FuzzyPhraseSet::from_path(filepath) {
+                Ok(set) => {
+                    Ok(set)
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
 
         method contains(call) {
@@ -110,11 +117,21 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
+            let result = this.grab(|set| {
+                match set.contains(v.as_slice()) {
+                    Ok(response) => {
+                        Ok(response)
+                    },
+                    Err(e) => {
+                        println!("{:?}", e);
+                        JsError::throw(Kind::TypeError, e.description())
+                    }
+                }
+            });
+
             Ok(JsBoolean::new(
                 call.scope,
-                this.grab(|set| {
-                    set.contains(&v[..]).unwrap()
-                })
+                result?
             ).upcast())
         }
 
@@ -133,11 +150,21 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
+            let result = this.grab(|set| {
+                match set.contains_prefix(v.as_slice()) {
+                    Ok(response) => {
+                        Ok(response)
+                    },
+                    Err(e) => {
+                        println!("{:?}", e);
+                        JsError::throw(Kind::TypeError, e.description())
+                    }
+                }
+            });
+
             Ok(JsBoolean::new(
                 call.scope,
-                this.grab(|set| {
-                    set.contains_prefix(&v[..]).unwrap()
-                })
+                result?
             ).upcast())
         }
 
@@ -160,11 +187,50 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
-            this.grab(|set| {
-                set.fuzzy_match(&v[..], max_word_dist, max_phrase_dist).unwrap()
+            let result = this.grab(|set| {
+                set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist)
             });
 
-            Ok(JsUndefined::new().upcast())
+            match result {
+                Ok(vec) => {
+                    let array = JsArray::new(
+                        call.scope,
+                        vec.len() as u32
+                    );
+                    for (i, item) in vec.iter().enumerate() {
+                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
+                        let object = JsObject::new(
+                            call.scope
+                        );
+                        let phrase = JsArray::new(
+                            call.scope,
+                            item.phrase.len() as u32
+                        );
+                        for (i, word) in item.phrase.iter().enumerate() {
+                            let string = JsString::new_or_throw(
+                                call.scope,
+                                word
+                            )?;
+                            phrase.set(i as u32, string)?;
+                        }
+                        object.set("phrase", phrase)?;
+
+                        let number = JsNumber::new(
+                            call.scope,
+                            item.edit_distance as f64
+                        );
+                        object.set("edit_distance", number)?;
+
+                        array.set(i as u32, object)?;
+                    }
+
+                    Ok(array.upcast())
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
 
         method fuzzy_match_prefix(call) {
@@ -186,11 +252,50 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
-            this.grab(|set| {
-                set.fuzzy_match_prefix(&v[..], max_word_dist, max_phrase_dist).unwrap()
+            let result = this.grab(|set| {
+                set.fuzzy_match_prefix(v.as_slice(), max_word_dist, max_phrase_dist)
             });
 
-            Ok(JsUndefined::new().upcast())
+            match result {
+                Ok(vec) => {
+                    let array = JsArray::new(
+                        call.scope,
+                        vec.len() as u32
+                    );
+                    for (i, item) in vec.iter().enumerate() {
+                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
+                        let object = JsObject::new(
+                            call.scope
+                        );
+                        let phrase = JsArray::new(
+                            call.scope,
+                            item.phrase.len() as u32
+                        );
+                        for (i, word) in item.phrase.iter().enumerate() {
+                            let string = JsString::new_or_throw(
+                                call.scope,
+                                word
+                            )?;
+                            phrase.set(i as u32, string)?;
+                        }
+                        object.set("phrase", phrase)?;
+
+                        let number = JsNumber::new(
+                            call.scope,
+                            item.edit_distance as f64
+                        );
+                        object.set("edit_distance", number)?;
+
+                        array.set(i as u32, object)?;
+                    }
+
+                    Ok(array.upcast())
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
     }
 }
