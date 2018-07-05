@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate neon;
 extern crate fuzzy_phrase;
+#[macro_use]
+extern crate serde_derive;
 extern crate neon_serde;
 
 use neon::mem::Handle;
@@ -13,13 +15,13 @@ use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
 
 // check argument type: https://github.com/Brooooooklyn/sourcemap-decoder/blob/master/native/src/lib.rs#L21-L29
 trait CheckArgument {
-  fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
+    fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
 }
 
 impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
-  fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V> {
-    self.arguments.require(self.scope, i)?.check::<V>()
-  }
+    fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V> {
+        self.arguments.require(self.scope, i)?.check::<V>()
+    }
 }
 
 declare_types! {
@@ -255,6 +257,77 @@ declare_types! {
 
             let result = this.grab(|set| {
                 set.fuzzy_match_prefix(v.as_slice(), max_word_dist, max_phrase_dist)
+            });
+
+            match result {
+                Ok(vec) => {
+                    let array = neon_serde::to_value(call.scope, &vec)?;
+
+                    Ok(array.upcast())
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
+        }
+
+        method fuzzy_match_windows(call) {
+            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
+                ?.value() as u8;
+            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
+                ?.value() as u8;
+            let ends_in_prefix: bool = call.arguments.require(call.scope, 2)?.check::<JsBoolean>()
+                ?.value();
+
+            let mut v: Vec<String> = Vec::new();
+
+            for i in 0..phrase_array.len() {
+                let string = phrase_array.get(call.scope, i)
+                ?.check::<JsString>()
+                ?.value();
+
+                v.push(string);
+            }
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            let result = this.grab(|set| {
+                set.fuzzy_match_windows(v.as_slice(), max_word_dist, max_phrase_dist, ends_in_prefix)
+            });
+
+            match result {
+                Ok(vec) => {
+                    let array = neon_serde::to_value(call.scope, &vec)?;
+
+                    Ok(array.upcast())
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
+        }
+
+        method fuzzy_match_multi(call) {
+            #[derive(Deserialize)]
+            struct MultiPhraseHelper(Vec<(Vec<String>, bool)>);
+            let arg0 = call.arguments.require(call.scope, 0)?;
+            let multi_array: MultiPhraseHelper = neon_serde::from_value(
+                call.scope,
+                arg0
+            )?;
+
+            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
+                ?.value() as u8;
+            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
+                ?.value() as u8;
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            let result = this.grab(|set| {
+                set.fuzzy_match_multi(multi_array.0.as_slice(), max_word_dist, max_phrase_dist)
             });
 
             match result {
