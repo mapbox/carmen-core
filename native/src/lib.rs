@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate neon;
 extern crate fuzzy_phrase;
+extern crate neon_serde;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
@@ -258,36 +259,7 @@ declare_types! {
 
             match result {
                 Ok(vec) => {
-                    let array = JsArray::new(
-                        call.scope,
-                        vec.len() as u32
-                    );
-                    for (i, item) in vec.iter().enumerate() {
-                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
-                        let object = JsObject::new(
-                            call.scope
-                        );
-                        let phrase = JsArray::new(
-                            call.scope,
-                            item.phrase.len() as u32
-                        );
-                        for (i, word) in item.phrase.iter().enumerate() {
-                            let string = JsString::new_or_throw(
-                                call.scope,
-                                word
-                            )?;
-                            phrase.set(i as u32, string)?;
-                        }
-                        object.set("phrase", phrase)?;
-
-                        let number = JsNumber::new(
-                            call.scope,
-                            item.edit_distance as f64
-                        );
-                        object.set("edit_distance", number)?;
-
-                        array.set(i as u32, object)?;
-                    }
+                    let array = neon_serde::to_value(call.scope, &vec)?;
 
                     Ok(array.upcast())
                 },
