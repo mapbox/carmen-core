@@ -5,8 +5,6 @@ const tmp = require('tmp');
 const rimraf = require('rimraf').sync;
 
 const tmpDir = tmp.dirSync();
-console.log("tmpDir: ", tmpDir.name);
-
 
 tape('build FuzzyPhraseSetBuilder', (t) => {
     let builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
