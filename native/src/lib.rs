@@ -79,14 +79,21 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder.take() {
                     Some(builder) => {
-                        builder.finish().unwrap();
+                        match builder.finish() {
+                            Ok(_finish) => {
+                                Ok(JsUndefined::new().upcast())
+                            },
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
+                        }
                     },
                     None => {
-                        panic!("SetBuilder not available for finish()");
+                        JsError::throw(Kind::TypeError, "unable to finish()")
                     }
                 }
-            });
-            Ok(JsUndefined::new().upcast())
+            })
         }
     }
 
@@ -202,7 +209,6 @@ declare_types! {
                         vec.len() as u32
                     );
                     for (i, item) in vec.iter().enumerate() {
-                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
                         let object = JsObject::new(
                             call.scope
                         );
