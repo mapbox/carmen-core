@@ -10,7 +10,6 @@ use neon::js::error::{Kind, JsError};
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
 
-// check argument type: https://github.com/Brooooooklyn/sourcemap-decoder/blob/master/native/src/lib.rs#L21-L29
 trait CheckArgument {
   fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
 }
@@ -27,8 +26,15 @@ declare_types! {
             let filename = call
                 .check_argument::<JsString>(0)
                 ?.value();
-            let build = FuzzyPhraseSetBuilder::new(filename).unwrap();
-            Ok(Some(build))
+            match FuzzyPhraseSetBuilder::new(filename){
+                Ok(response) => {
+                    Ok(Some(response))
+                },
+                Err(e) => {
+                    println!("{:?}", e);
+                    JsError::throw(Kind::TypeError, e.description())
+                }
+            }
         }
 
         method insert(call) {
@@ -46,11 +52,9 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
 
-            // let mut result: JsResult<JsValue> = JsUndefined::new().upcast();
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        // builder.insert(v.as_slice())?;
                         match builder.insert(v.as_slice()) {
                             Ok(()) => {
                                 Ok(JsUndefined::new().upcast())
@@ -75,14 +79,21 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder.take() {
                     Some(builder) => {
-                        builder.finish().unwrap();
+                        match builder.finish() {
+                            Ok(_finish) => {
+                                Ok(JsUndefined::new().upcast())
+                            },
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
+                        }
                     },
                     None => {
-                        panic!("SetBuilder not available for finish()");
+                        JsError::throw(Kind::TypeError, "unable to finish()")
                     }
                 }
-            });
-            Ok(JsUndefined::new().upcast())
+            })
         }
     }
 
@@ -198,7 +209,6 @@ declare_types! {
                         vec.len() as u32
                     );
                     for (i, item) in vec.iter().enumerate() {
-                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
                         let object = JsObject::new(
                             call.scope
                         );
@@ -263,7 +273,6 @@ declare_types! {
                         vec.len() as u32
                     );
                     for (i, item) in vec.iter().enumerate() {
-                        // item is an instance of FuzzyMatchResult; needs to be converted to an object with an array
                         let object = JsObject::new(
                             call.scope
                         );
