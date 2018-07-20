@@ -32,10 +32,10 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     t.ok(set.contains(["300","mlk","blvd"]), "FuzzyPhraseSet contains()");
 
     t.ok(set.contains(["100","main","street"]), "FuzzyPhraseSet contains()");
-    let phrase_static = ["100", "main", "street"];
-    t.ok(set.contains(phrase_static), "FuzzyPhraseSet contains()");
-    let phrase_vec = ["100", "main", "street"];
-    t.ok(set.contains(phrase_vec), "FuzzyPhraseSet contains()");
+    let phraseStatic = ["100", "main", "street"];
+    t.ok(set.contains(phraseStatic), "FuzzyPhraseSet contains()");
+    let phraseVec = ["100", "main", "street"];
+    t.ok(set.contains(phraseVec), "FuzzyPhraseSet contains()");
 
     t.notOk(set.contains(["x"]), "FuzzyPhraseSet does not contains()");
     t.notOk(set.contains(["100","main"]), "FuzzyPhraseSet does not contains()");
@@ -44,44 +44,44 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     t.notOk(set.contains(["100","main","street","r"]), "FuzzyPhraseSet does not contains()");
     t.notOk(set.contains(["100","main","street","ave"]), "FuzzyPhraseSet does not contains()");
 
-    t.ok(set.contains_prefix(["100","main","street"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["200","main","street"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["100","main","ave"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["300","mlk","blvd"]), "FuzzyPhraseSet contains_prefix()");
+    t.ok(set.containsPrefix(["100","main","street"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["200","main","street"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["100","main","ave"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["300","mlk","blvd"]), "FuzzyPhraseSet containsPrefix()");
 
-    t.ok(set.contains_prefix(["100","main"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["200","main"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["100","main"]), "FuzzyPhraseSet contains_prefix()");
-    t.ok(set.contains_prefix(["300","mlk"]), "FuzzyPhraseSet contains_prefix()");
+    t.ok(set.containsPrefix(["100","main"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["200","main"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["100","main"]), "FuzzyPhraseSet containsPrefix()");
+    t.ok(set.containsPrefix(["300","mlk"]), "FuzzyPhraseSet containsPrefix()");
 
-    t.notOk(set.contains_prefix(["100","man"]), "FuzzyPhraseSet does not contains_prefix()");
-    t.notOk(set.contains_prefix(["400","main"]), "FuzzyPhraseSet does not contains_prefix()");
-    t.notOk(set.contains_prefix(["100","main","street","x"]), "FuzzyPhraseSet does not contains_prefix()");
+    t.notOk(set.containsPrefix(["100","man"]), "FuzzyPhraseSet does not containsPrefix()");
+    t.notOk(set.containsPrefix(["400","main"]), "FuzzyPhraseSet does not containsPrefix()");
+    t.notOk(set.containsPrefix(["100","main","street","x"]), "FuzzyPhraseSet does not containsPrefix()");
 
-    t.ok(set.fuzzy_match(["100", "man", "street"], 1, 1), "FuzzyPhraseSet fuzzy_match()");
+    t.ok(set.fuzzyMatch(["100", "man", "street"], 1, 1), "FuzzyPhraseSet fuzzyMatch()");
 
     t.deepEquals(
-        set.fuzzy_match(["100", "man", "street"], 1, 1),
+        set.fuzzyMatch(["100", "man", "street"], 1, 1),
         [ { edit_distance: 1, phrase: [ '100', 'main', 'street' ] } ],
-        "FuzzyPhraseSet fuzzy_match()"
+        "FuzzyPhraseSet fuzzyMatch()"
     );
 
     t.deepEquals(
-        set.fuzzy_match(["100", "man", "stret"], 1, 2),
+        set.fuzzyMatch(["100", "man", "stret"], 1, 2),
         [ { edit_distance: 2, phrase: [ '100', 'main', 'street' ] } ],
-        "FuzzyPhraseSet fuzzy_match()"
+        "FuzzyPhraseSet fuzzyMatch()"
     );
 
     t.deepEquals(
-        set.fuzzy_match_prefix(["100", "man"], 1, 1),
+        set.fuzzyMatchPrefix(["100", "man"], 1, 1),
         [{ phrase: ["100", "main"], edit_distance: 1 }],
-        "FuzzyPhraseSet fuzzy_match_prefix()"
+        "FuzzyPhraseSet fuzzyMatchPrefix()"
     );
 
     t.deepEquals(
-        set.fuzzy_match_prefix(["100", "man", "str"], 1, 1),
+        set.fuzzyMatchPrefix(["100", "man", "str"], 1, 1),
         [{ phrase: ["100", "main", "str"], edit_distance: 1 }],
-        "FuzzyPhraseSet fuzzy_match_prefix()"
+        "FuzzyPhraseSet fuzzyMatchPrefix()"
     );
 
     rimraf(tmpDir.name);
