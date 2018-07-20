@@ -149,7 +149,7 @@ declare_types! {
             ).upcast())
         }
 
-        method contains_prefix(call) {
+        method containsPrefix(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
 
             let mut v: Vec<String> = Vec::new();
@@ -182,7 +182,7 @@ declare_types! {
             ).upcast())
         }
 
-        method fuzzy_match(call) {
+        method fuzzyMatch(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
             let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
                 ?.value() as u8;
@@ -246,7 +246,7 @@ declare_types! {
             }
         }
 
-        method fuzzy_match_prefix(call) {
+        method fuzzyMatchPrefix(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
             let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
                 ?.value() as u8;
@@ -282,7 +282,7 @@ declare_types! {
             }
         }
 
-        method fuzzy_match_windows(call) {
+        method fuzzyMatchWindows(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
             let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
                 ?.value() as u8;
@@ -320,7 +320,7 @@ declare_types! {
             }
         }
 
-        method fuzzy_match_multi(call) {
+        method fuzzyMatchMulti(call) {
             #[derive(Deserialize)]
             struct MultiPhraseHelper(Vec<(Vec<String>, bool)>);
             let arg0 = call.arguments.require(call.scope, 0)?;
