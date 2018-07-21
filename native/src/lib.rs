@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate neon;
 extern crate fuzzy_phrase;
-#[macro_use]
-extern crate serde_derive;
 extern crate neon_serde;
 
 use neon::mem::Handle;
@@ -288,7 +286,7 @@ declare_types! {
                 ?.value() as u8;
             let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
                 ?.value() as u8;
-            let ends_in_prefix: bool = call.arguments.require(call.scope, 2)?.check::<JsBoolean>()
+            let ends_in_prefix: bool = call.arguments.require(call.scope, 3)?.check::<JsBoolean>()
                 ?.value();
 
             let mut v: Vec<String> = Vec::new();
@@ -321,10 +319,8 @@ declare_types! {
         }
 
         method fuzzyMatchMulti(call) {
-            #[derive(Deserialize)]
-            struct MultiPhraseHelper(Vec<(Vec<String>, bool)>);
             let arg0 = call.arguments.require(call.scope, 0)?;
-            let multi_array: MultiPhraseHelper = neon_serde::from_value(
+            let multi_array: Vec<(Vec<String>, bool)> = neon_serde::from_value(
                 call.scope,
                 arg0
             )?;
@@ -337,7 +333,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                set.fuzzy_match_multi(multi_array.0.as_slice(), max_word_dist, max_phrase_dist)
+                set.fuzzy_match_multi(multi_array.as_slice(), max_word_dist, max_phrase_dist)
             });
 
             match result {

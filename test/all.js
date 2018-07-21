@@ -84,6 +84,44 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
         "FuzzyPhraseSet fuzzyMatchPrefix()"
     );
 
+
+
+    t.deepEquals(
+        set.fuzzyMatchMulti([
+            [["100", "man", "street"], false],
+            [["100", "man", "stret"], false],
+            [["100", "man"], true],
+            [["100", "man", "str"], true]
+        ], 1, 2),
+        [
+            [ { edit_distance: 1, phrase: [ '100', 'main', 'street' ] } ],
+            [ { edit_distance: 2, phrase: [ '100', 'main', 'street' ] } ],
+            [{ phrase: ["100", "main"], edit_distance: 1 }],
+            [{ phrase: ["100", "main", "str"], edit_distance: 1 }]
+        ],
+        "FuzzyPhraseSet fuzzyMatchMulti()"
+    );
+
+    t.deepEquals(
+        set.fuzzyMatchWindows('100 man street washington 200'.split(' '), 0, 0, false),
+        []
+    );
+
+    t.deepEquals(
+        set.fuzzyMatchWindows('100 man street washington 200'.split(' '), 1, 1, false),
+        [
+            { edit_distance: 1, ends_in_prefix: false, phrase: [ '100', 'main', 'street' ], start_position: 0 },
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatchWindows('100 man street washington 200'.split(' '), 1, 1, true),
+        [
+            { edit_distance: 1, ends_in_prefix: false, phrase: [ '100', 'main', 'street' ], start_position: 0 },
+            { edit_distance: 0, ends_in_prefix: true, phrase: [ '200' ], start_position: 4 }
+        ]
+    );
+
     rimraf(tmpDir.name);
 
     t.end();
