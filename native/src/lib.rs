@@ -9,7 +9,7 @@ use neon::js::{JsFunction, Object, JsString, JsNumber, Value, JsUndefined, JsArr
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
-use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet};
+use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet, WordReplacement};
 
 trait CheckArgument {
     fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
@@ -68,6 +68,24 @@ declare_types! {
                     },
                     None => {
                         JsError::throw(Kind::TypeError, "unable to insert()")
+                    }
+                }
+            })
+        }
+
+        method loadWordReplacements(call) {
+            let scope = call.scope;
+            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
+            let mut v: Vec<WordReplacement> = Vec::new();
+
+            this.grab(|fuzzyphrasesetbuilder| {
+                match fuzzyphrasesetbuilder {
+                    Some(builder) => {
+                        match builder.load_word_replacements(v) {
+                        }
+                    },
+                    None => {
+                        JsError::throw(Kind::TypeError, "unable to load_word_replacements()")
                     }
                 }
             })
