@@ -75,13 +75,21 @@ declare_types! {
 
         method loadWordReplacements(call) {
             let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
-            let mut v: Vec<WordReplacement> = Vec::new();
+            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+            let word_array = call.arguments.require(scope, 0)?;
+            let word_replacements: Vec<WordReplacement> = neon_serde::from_value(scope, word_array)?;
 
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        match builder.load_word_replacements(v) {
+                        match builder.load_word_replacements(word_replacements) {
+                            Ok(_) => {
+                                Ok(JsUndefined::new().upcast())
+                            },
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
                         }
                     },
                     None => {

@@ -18,7 +18,6 @@ tape('build FuzzyPhraseSetBuilder', (t) => {
 
 tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
     let builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
-
     builder.insert(["100","main","street"]);
     builder.insert(["200","main","street"]);
     builder.insert(["100","main","ave"]);
@@ -124,5 +123,11 @@ tape("FuzzyPhraseSetBuilder insertion and Set lookup", (t) => {
 
     rimraf(tmpDir.name);
 
+    t.end();
+})
+
+tape('load word replacements', (t) => {
+    let builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
+    builder.loadWordReplacements([{ from: 'Street', to: 'Str' }]);
     t.end();
 })
