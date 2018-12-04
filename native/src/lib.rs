@@ -82,15 +82,8 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        match builder.load_word_replacements(word_replacements) {
-                            Ok(_) => {
-                                Ok(JsUndefined::new().upcast())
-                            },
-                            Err(e) => {
-                                println!("{:?}", e);
-                                JsError::throw(Kind::TypeError, e.description())
-                            }
-                        }
+                        builder.load_word_replacements(word_replacements);
+                        Ok(JsUndefined::new().upcast())
                     },
                     None => {
                         JsError::throw(Kind::TypeError, "unable to load_word_replacements()")
