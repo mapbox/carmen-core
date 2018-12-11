@@ -5,11 +5,11 @@ extern crate neon_serde;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, JsNumber, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsObject};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsObject};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
-use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet, WordReplacement};
+use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet, WordReplacement, EndingType};
 
 trait CheckArgument {
     fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
@@ -136,38 +136,11 @@ declare_types! {
         method contains(call) {
             let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
 
-            let mut v: Vec<String> = Vec::new();
-
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
-
-                v.push(string);
-            }
-
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
-
-            let result = this.grab(|set| {
-                match set.contains(v.as_slice()) {
-                    Ok(response) => {
-                        Ok(response)
-                    },
-                    Err(e) => {
-                        println!("{:?}", e);
-                        JsError::throw(Kind::TypeError, e.description())
-                    }
-                }
-            });
-
-            Ok(JsBoolean::new(
+            let arg1 = call.arguments.require(call.scope, 1)?;
+            let ending_type: EndingType = neon_serde::from_value(
                 call.scope,
-                result?
-            ).upcast())
-        }
-
-        method containsPrefix(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+                arg1
+            )?;
 
             let mut v: Vec<String> = Vec::new();
 
@@ -182,7 +155,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                match set.contains_prefix(v.as_slice()) {
+                match set.contains(v.as_slice(), ending_type) {
                     Ok(response) => {
                         Ok(response)
                     },
@@ -206,69 +179,11 @@ declare_types! {
             let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
                 ?.value() as u8;
 
-            let mut v: Vec<String> = Vec::new();
-
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
-
-                v.push(string);
-            }
-
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
-
-            let result = this.grab(|set| {
-                set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist)
-            });
-
-            match result {
-                Ok(vec) => {
-                    let array = JsArray::new(
-                        call.scope,
-                        vec.len() as u32
-                    );
-                    for (i, item) in vec.iter().enumerate() {
-                        let object = JsObject::new(
-                            call.scope
-                        );
-                        let phrase = JsArray::new(
-                            call.scope,
-                            item.phrase.len() as u32
-                        );
-                        for (i, word) in item.phrase.iter().enumerate() {
-                            let string = JsString::new_or_throw(
-                                call.scope,
-                                word
-                            )?;
-                            phrase.set(i as u32, string)?;
-                        }
-                        object.set("phrase", phrase)?;
-
-                        let number = JsNumber::new(
-                            call.scope,
-                            item.edit_distance as f64
-                        );
-                        object.set("edit_distance", number)?;
-
-                        array.set(i as u32, object)?;
-                    }
-
-                    Ok(array.upcast())
-                },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
-            }
-        }
-
-        method fuzzyMatchPrefix(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
-            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
-                ?.value() as u8;
-            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
-                ?.value() as u8;
+            let arg3 = call.arguments.require(call.scope, 3)?;
+            let ending_type: EndingType = neon_serde::from_value(
+                call.scope,
+                arg3
+            )?;
 
             let mut v: Vec<String> = Vec::new();
 
@@ -283,7 +198,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                set.fuzzy_match_prefix(v.as_slice(), max_word_dist, max_phrase_dist)
+                set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
             });
 
             match result {
@@ -305,8 +220,12 @@ declare_types! {
                 ?.value() as u8;
             let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
                 ?.value() as u8;
-            let ends_in_prefix: bool = call.arguments.require(call.scope, 3)?.check::<JsBoolean>()
-                ?.value();
+
+            let arg3 = call.arguments.require(call.scope, 3)?;
+            let ending_type: EndingType = neon_serde::from_value(
+                call.scope,
+                arg3
+            )?;
 
             let mut v: Vec<String> = Vec::new();
 
@@ -321,7 +240,7 @@ declare_types! {
             let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
 
             let result = this.grab(|set| {
-                set.fuzzy_match_windows(v.as_slice(), max_word_dist, max_phrase_dist, ends_in_prefix)
+                set.fuzzy_match_windows(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
             });
 
             match result {
@@ -339,7 +258,7 @@ declare_types! {
 
         method fuzzyMatchMulti(call) {
             let arg0 = call.arguments.require(call.scope, 0)?;
-            let multi_array: Vec<(Vec<String>, bool)> = neon_serde::from_value(
+            let multi_array: Vec<(Vec<String>, EndingType)> = neon_serde::from_value(
                 call.scope,
                 arg0
             )?;

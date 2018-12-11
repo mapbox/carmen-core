@@ -36,116 +36,116 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
     builder.finish();
 
     const set = new fuzzy.FuzzyPhraseSet(tmpDir.name);
-    t.ok(set.contains(['100', 'main', 'street']), 'FuzzyPhraseSet contains()');
-    t.ok(set.contains(['200', 'main', 'street']), 'FuzzyPhraseSet contains()');
-    t.ok(set.contains(['100', 'main', 'ave']), 'FuzzyPhraseSet contains()');
-    t.ok(set.contains(['300', 'mlk', 'blvd']), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(['100', 'main', 'street'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(['200', 'main', 'street'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(['100', 'main', 'ave'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(['300', 'mlk', 'blvd'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
 
-    t.ok(set.contains(['100', 'main', 'street']), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(['100', 'main', 'street'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
     const phraseStatic = ['100', 'main', 'street'];
-    t.ok(set.contains(phraseStatic), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(phraseStatic, fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
     const phraseVec = ['100', 'main', 'street'];
-    t.ok(set.contains(phraseVec), 'FuzzyPhraseSet contains()');
+    t.ok(set.contains(phraseVec, fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
 
-    t.notOk(set.contains(['x']), 'FuzzyPhraseSet does not contains()');
-    t.notOk(set.contains(['100', 'main']), 'FuzzyPhraseSet does not contains()');
+    t.notOk(set.contains(['x'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet does not contains()');
+    t.notOk(set.contains(['100', 'main'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet does not contains()');
     t.notOk(
-        set.contains(['100', 'main', 's']),
+        set.contains(['100', 'main', 's'], fuzzy.ENDING_TYPE.nonPrefix),
         'FuzzyPhraseSet does not contains()'
     );
     t.notOk(
-        set.contains(['100', 'main', 'streetr']),
+        set.contains(['100', 'main', 'streetr'], fuzzy.ENDING_TYPE.nonPrefix),
         'FuzzyPhraseSet does not contains()'
     );
     t.notOk(
-        set.contains(['100', 'main', 'street', 'r']),
+        set.contains(['100', 'main', 'street', 'r'], fuzzy.ENDING_TYPE.nonPrefix),
         'FuzzyPhraseSet does not contains()'
     );
     t.notOk(
-        set.contains(['100', 'main', 'street', 'ave']),
+        set.contains(['100', 'main', 'street', 'ave'], fuzzy.ENDING_TYPE.nonPrefix),
         'FuzzyPhraseSet does not contains()'
     );
 
     t.ok(
-        set.containsPrefix(['100', 'main', 'street']),
+        set.contains(['100', 'main', 'street'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet containsPrefix()'
     );
     t.ok(
-        set.containsPrefix(['200', 'main', 'street']),
+        set.contains(['200', 'main', 'street'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet containsPrefix()'
     );
     t.ok(
-        set.containsPrefix(['100', 'main', 'ave']),
+        set.contains(['100', 'main', 'ave'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet containsPrefix()'
     );
     t.ok(
-        set.containsPrefix(['300', 'mlk', 'blvd']),
+        set.contains(['300', 'mlk', 'blvd'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet containsPrefix()'
     );
 
-    t.ok(set.containsPrefix(['100', 'main']), 'FuzzyPhraseSet containsPrefix()');
-    t.ok(set.containsPrefix(['200', 'main']), 'FuzzyPhraseSet containsPrefix()');
-    t.ok(set.containsPrefix(['100', 'main']), 'FuzzyPhraseSet containsPrefix()');
-    t.ok(set.containsPrefix(['300', 'mlk']), 'FuzzyPhraseSet containsPrefix()');
+    t.ok(set.contains(['100', 'main'], fuzzy.ENDING_TYPE.anyPrefix), 'FuzzyPhraseSet containsPrefix()');
+    t.ok(set.contains(['200', 'main'], fuzzy.ENDING_TYPE.anyPrefix), 'FuzzyPhraseSet containsPrefix()');
+    t.ok(set.contains(['100', 'main'], fuzzy.ENDING_TYPE.anyPrefix), 'FuzzyPhraseSet containsPrefix()');
+    t.ok(set.contains(['300', 'mlk'], fuzzy.ENDING_TYPE.anyPrefix), 'FuzzyPhraseSet containsPrefix()');
 
     t.notOk(
-        set.containsPrefix(['100', 'man']),
+        set.contains(['100', 'man'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet does not containsPrefix()'
     );
     t.notOk(
-        set.containsPrefix(['400', 'main']),
+        set.contains(['400', 'main'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet does not containsPrefix()'
     );
     t.notOk(
-        set.containsPrefix(['100', 'main', 'street', 'x']),
+        set.contains(['100', 'main', 'street', 'x'], fuzzy.ENDING_TYPE.anyPrefix),
         'FuzzyPhraseSet does not containsPrefix()'
     );
 
     t.ok(
-        set.fuzzyMatch(['100', 'man', 'street'], 1, 1),
-        'FuzzyPhraseSet fuzzyMatch()'
+        set.fuzzyMatch(['100', 'man', 'street'], 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
+        'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
     );
 
     t.deepEquals(
-        set.fuzzyMatch(['100', 'man', 'street'], 1, 1),
-        [{ edit_distance: 1, phrase: ['100', 'main', 'street'] }],
-        'FuzzyPhraseSet fuzzyMatch()'
+        set.fuzzyMatch(['100', 'man', 'street'], 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
+        [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+        'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
     );
 
     t.deepEquals(
-        set.fuzzyMatch(['100', 'man', 'stret'], 1, 2),
-        [{ edit_distance: 2, phrase: ['100', 'main', 'street'] }],
-        'FuzzyPhraseSet fuzzyMatch()'
+        set.fuzzyMatch(['100', 'man', 'stret'], 1, 2, fuzzy.ENDING_TYPE.nonPrefix),
+        [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+        'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
     );
 
     t.deepEquals(
-        set.fuzzyMatchPrefix(['100', 'man'], 1, 1),
-        [{ phrase: ['100', 'main'], edit_distance: 1 }],
-        'FuzzyPhraseSet fuzzyMatchPrefix()'
+        set.fuzzyMatch(['100', 'man'], 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }],
+        'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.anyPrefix)'
     );
 
     t.deepEquals(
-        set.fuzzyMatchPrefix(['100', 'man', 'str'], 1, 1),
-        [{ phrase: ['100', 'main', 'str'], edit_distance: 1 }],
-        'FuzzyPhraseSet fuzzyMatchPrefix()'
+        set.fuzzyMatch(['100', 'man', 'str'], 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix }],
+        'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.anyPrefix)'
     );
 
     t.deepEquals(
         set.fuzzyMatchMulti(
             [
-                [['100', 'man', 'street'], false],
-                [['100', 'man', 'stret'], false],
-                [['100', 'man'], true],
-                [['100', 'man', 'str'], true]
+                [['100', 'man', 'street'], fuzzy.ENDING_TYPE.nonPrefix],
+                [['100', 'man', 'stret'], fuzzy.ENDING_TYPE.nonPrefix],
+                [['100', 'man'], fuzzy.ENDING_TYPE.anyPrefix],
+                [['100', 'man', 'str'], fuzzy.ENDING_TYPE.anyPrefix]
             ],
             1,
             2
         ),
         [
-            [{ edit_distance: 1, phrase: ['100', 'main', 'street'] }],
-            [{ edit_distance: 2, phrase: ['100', 'main', 'street'] }],
-            [{ phrase: ['100', 'main'], edit_distance: 1 }],
-            [{ phrase: ['100', 'main', 'str'], edit_distance: 1 }]
+            [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+            [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+            [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }],
+            [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix }]
         ],
         'FuzzyPhraseSet fuzzyMatchMulti()'
     );
@@ -155,7 +155,7 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
             '100 man street washington 200'.split(' '),
             0,
             0,
-            false
+            fuzzy.ENDING_TYPE.nonPrefix
         ),
         []
     );
@@ -165,12 +165,12 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
             '100 man street washington 200'.split(' '),
             1,
             1,
-            false
+            fuzzy.ENDING_TYPE.nonPrefix
         ),
         [
             {
                 edit_distance: 1,
-                ends_in_prefix: false,
+                ending_type: fuzzy.ENDING_TYPE.nonPrefix,
                 phrase: ['100', 'main', 'street'],
                 start_position: 0
             }
@@ -182,18 +182,18 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
             '100 man street washington 200'.split(' '),
             1,
             1,
-            true
+            fuzzy.ENDING_TYPE.anyPrefix
         ),
         [
             {
                 edit_distance: 1,
-                ends_in_prefix: false,
+                ending_type: fuzzy.ENDING_TYPE.nonPrefix,
                 phrase: ['100', 'main', 'street'],
                 start_position: 0
             },
             {
                 edit_distance: 0,
-                ends_in_prefix: true,
+                ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix,
                 phrase: ['200'],
                 start_position: 4
             }
