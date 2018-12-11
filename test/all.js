@@ -206,10 +206,10 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
 });
 
 tape('load word replacements', (t) => {
-    let builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
+    const builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
     builder.loadWordReplacements([{ from: 'Street', to: 'Str' }]);
     builder.finish();
-    var word_replacements_obj = JSON.parse(fs.readFileSync(tmpDir.name + '/metadata.json')).word_replacements;
-    t.deepEquals(word_replacements_obj, [ { from: 'Street', to: 'Str' } ], 'ok, loads word replacements')
+    const word_replacements_obj = JSON.parse(fs.readFileSync(tmpDir.name + '/metadata.json')).word_replacements;
+    t.deepEquals(word_replacements_obj, [{ from: 'Street', to: 'Str' }], 'ok, loads word replacements');
     t.end();
 });
