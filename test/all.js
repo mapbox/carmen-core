@@ -6,9 +6,9 @@ const rimraf = require('rimraf').sync;
 const fs = require('fs');
 const fuzzy = require('../lib');
 
-const tmpDir = tmp.dirSync();
-
 tape('build FuzzyPhraseSetBuilder', (t) => {
+    const tmpDir = tmp.dirSync();
+
     const builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
     t.ok(builder, 'FuzzyPhraseSetBuilder built');
     t.throws(() => {
@@ -23,10 +23,15 @@ tape('build FuzzyPhraseSetBuilder', (t) => {
     t.throws(() => {
         new fuzzy.FuzzyPhraseSetBuilder(7);
     }, 'throws on wrong type arguments');
+
+    rimraf(tmpDir.name);
+
     t.end();
 });
 
 tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
+    const tmpDir = tmp.dirSync();
+
     const builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
 
     builder.insert(['100', 'main', 'street']);
@@ -205,11 +210,146 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
     t.end();
 });
 
-tape('load word replacements', (t) => {
+tape('word replacements', (t) => {
+    const tmpDir = tmp.dirSync();
+    const replacements = [
+        { from: "street", to: "st" },
+        { from: "saint", to: "st" },
+        { from: "avenue", to: "ave" },
+        { from: "fort", to: "ft" },
+        { from: "road", to: "rd" },
+    ];
+
     const builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
-    builder.loadWordReplacements([{ from: 'Street', to: 'Str' }]);
+
+    builder.insert(["100", "main", "street"]);
+    builder.insert(["100", "main", "st"]);
+    builder.insert(["100", "maine", "st"]);
+    builder.insert(["100", "ft", "wayne", "rd"]);
+    builder.insert(["100", "fortenberry", "ave"]);
+
+    builder.loadWordReplacements(replacements);
     builder.finish();
+
     const word_replacements_obj = JSON.parse(fs.readFileSync(tmpDir.name + '/metadata.json')).word_replacements;
-    t.deepEquals(word_replacements_obj, [{ from: 'Street', to: 'Str' }], 'ok, loads word replacements');
+    t.deepEquals(word_replacements_obj, replacements, 'ok, loads word replacements');
+
+    const set = new fuzzy.FuzzyPhraseSet(tmpDir.name);
+
+    // regular fuzzy search
+    t.deepEquals(
+        set.fuzzyMatch("100 main s".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main st".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main str".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main str".split(' '), 0, 0, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main stre".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main stree".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main street".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+        ]
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main s".split(' '), 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
+        []
+    );
+
+    t.deepEquals(
+        set.fuzzyMatch("100 main st".split(' '), 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
+        [
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix }
+        ]
+    );
+
+    // windowed search
+    const variants = [
+        "100 fort wayne road washington dc",
+        "100 ft wayne road washington dc",
+        "100 fort wayne rd washington dc",
+        "100 ft wayne rd washington dc"
+    ];
+    for (const variant of variants) {
+        t.deepEquals(
+            set.fuzzyMatchWindows(variant.split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
+            [
+                {
+                    edit_distance: 0,
+                    phrase: ["100", "ft", "wayne", "rd"],
+                    start_position: 0,
+                    ending_type: fuzzy.ENDING_TYPE.nonPrefix
+                }
+            ]
+        )
+    }
+
+    // multi search -- just test it in terms of regular fuzzy search, since we know that works
+    const stuffToTry = [
+        ["100", "main", "s"],
+        ["100", "main", "st"],
+        ["100", "main", "str"],
+        ["100", "main", "stre"],
+        ["100", "main", "stree"],
+        ["100", "main", "street"],
+        ["100", "fort", "wayne", "road"],
+        ["100", "ft", "wayne", "road"],
+        ["100", "fort", "wayne", "rd"],
+        ["100", "ft", "wayne", "rd"]
+    ];
+    const regularResults = [];
+    const multiToTry = [];
+    for (const ending of [fuzzy.ENDING_TYPE.nonPrefix, fuzzy.ENDING_TYPE.anyPrefix, fuzzy.ENDING_TYPE.wordBoundaryPrefix]) {
+        for (const phrase of stuffToTry) {
+            regularResults.push(set.fuzzyMatch(phrase, 1, 1, ending));
+            multiToTry.push([phrase, ending]);
+        }
+    }
+    t.deepEquals(regularResults, set.fuzzyMatchMulti(multiToTry, 1, 1));
+
+    rimraf(tmpDir.name);
+
     t.end();
 });

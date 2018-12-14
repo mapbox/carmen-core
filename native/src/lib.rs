@@ -5,7 +5,7 @@ extern crate neon_serde;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger, JsObject};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
