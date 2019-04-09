@@ -25,6 +25,7 @@ fn relev_float_to_int(relev: f32) -> u8 {
     else { 3 }
 }
 
+/// Extends a BuildEntry with the given values.
 fn extend_entries(builder_entry: &mut BuilderEntry, values: &[GridEntry]) -> () {
     for (rs, values) in &values.into_iter().group_by(|value| (relev_float_to_int(value.relev) << 4) | value.score) {
         let rs_entry = builder_entry
@@ -43,10 +44,12 @@ fn extend_entries(builder_entry: &mut BuilderEntry, values: &[GridEntry]) -> () 
 }
 
 impl GridStoreBuilder {
+    /// Makes a new GridStoreBuilder with a particular filename.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
         Ok(GridStoreBuilder { path: path.as_ref().to_owned(), data: BTreeMap::new() })
     }
 
+    /// Inserts a new GridStore entry with the given values.
     pub fn insert(&mut self, key: &GridKey, values: &[GridEntry]) -> Result<(), Box<dyn Error>> {
         let mut to_insert = BuilderEntry::new();
         extend_entries(&mut to_insert, values);
@@ -54,12 +57,14 @@ impl GridStoreBuilder {
         Ok(())
     }
 
+    ///  Appends a values to and existing GridStore entry.
     pub fn append(&mut self, key: &GridKey, values: &[GridEntry]) -> Result<(), Box<dyn Error>> {
         let mut to_append = self.data.entry(key.to_owned()).or_insert_with(|| BuilderEntry::new());
         extend_entries(&mut to_append, values);
         Ok(())
     }
 
+    /// [wip] Writes data to disk.
     pub fn finish(mut self) -> Result<(), Box<Error>> {
         let db = DB::open_default(&self.path)?;
         let mut db_key: Vec<u8> = Vec::with_capacity(MAX_KEY_LENGTH);
@@ -118,11 +123,39 @@ impl GridStoreBuilder {
 #[cfg(test)] use tempfile;
 
 #[test]
-fn basic_test() {
+fn extend_entry_test() {
+    let mut entry = BuilderEntry::new();
+
+    extend_entries(&mut entry, &vec![
+        GridEntry {
+            id: 1,
+            x: 1,
+            y: 1,
+            relev: 1.,
+            score: 7,
+            source_phrase_hash: 2
+        }
+    ]);
+
+    // relev 3 (0011) with score 7 (0111) -> 55
+    let grids = entry.get(&55);
+    assert_ne!(grids, None, "Retrieve grids based on relev and score");
+
+    // x:1, y:1 -> z-order 3
+    let vals = grids.unwrap().get(&3);
+    assert_ne!(vals, None, "Retrieve entries based on z-order");
+    // id 1 (1 << 8 == 256) with phrase 2 => 258
+    assert_eq!(vals.unwrap()[0], 258, "TODO");
+}
+
+#[test]
+fn insert_test() {
     let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
     let mut builder = GridStoreBuilder::new(directory.path()).unwrap();
 
-    builder.insert(&GridKey { phrase_id: 1, lang_set: 1 }, &vec![
+    let key = GridKey { phrase_id: 1, lang_set: 1 };
+
+    builder.insert(&key, &vec![
         GridEntry {
             id: 2,
             x: 2,
@@ -147,7 +180,61 @@ fn basic_test() {
             score: 7,
             source_phrase_hash: 2
         }
-    ]).unwrap();
+    ]).expect("Unable to insert record");
+
+    assert_ne!(builder.path.to_str(), None);
+    assert_eq!(builder.data.len(), 1, "Gridstore has one entry");
+
+    let entry = builder.data.get(&key);
+    assert_ne!(entry, None);
+    assert_eq!(entry.unwrap().len(), 3, "Entry contains three grids");
+
+    builder.finish().unwrap();
+}
+
+#[test]
+fn append_test() {
+    let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
+    let mut builder = GridStoreBuilder::new(directory.path()).unwrap();
+
+    let key = GridKey { phrase_id: 1, lang_set: 1 };
+
+    builder.insert(&key, &vec![
+        GridEntry {
+            id: 2,
+            x: 2,
+            y: 2,
+            relev: 0.8,
+            score: 3,
+            source_phrase_hash: 0
+        }
+    ]).expect("Unable to insert record");
+
+    builder.append(&key, &vec![
+        GridEntry {
+            id: 3,
+            x: 3,
+            y: 3,
+            relev: 1.,
+            score: 1,
+            source_phrase_hash: 1
+        },
+        GridEntry {
+            id: 1,
+            x: 1,
+            y: 1,
+            relev: 1.,
+            score: 7,
+            source_phrase_hash: 2
+        }
+    ]).expect("Unable to append grids");
+
+    assert_ne!(builder.path.to_str(), None);
+    assert_eq!(builder.data.len(), 1, "Gridstore has one entry");
+
+    let entry = builder.data.get(&key);
+    assert_ne!(entry, None);
+    assert_eq!(entry.unwrap().len(), 3, "Entry contains three grids");
 
     builder.finish().unwrap();
 }
