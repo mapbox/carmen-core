@@ -4,6 +4,7 @@ use std::path::Path;
 use morton::deinterleave_morton;
 use rocksdb::DB;
 use flatbuffers;
+use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::gridstore::common::*;
 use crate::gridstore::gridstore_generated::*;
@@ -21,7 +22,10 @@ fn get_vector<'a, T: 'a>(buf: &'a [u8], table: &flatbuffers::Table, field: flatb
     if o == 0 {
         return None;
     }
-    Some(flatbuffers::Vector::new(buf, table.loc + o))
+
+    let addr = table.loc + o;
+    let offset = (&buf[addr..(addr + 4)]).read_u32::<LittleEndian>().unwrap() as usize;
+    Some(flatbuffers::Vector::new(buf, addr + offset))
 }
 
 impl GridStore {
