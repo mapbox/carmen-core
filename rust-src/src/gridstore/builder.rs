@@ -68,9 +68,9 @@ impl GridStoreBuilder {
             // figure out the value
             let mut fb_builder = flatbuffers::FlatBufferBuilder::new();
             let mut rses: Vec<_> = Vec::new();
-            for (rs, coord_group) in value.iter_mut() {
+            for (rs, coord_group) in value.iter_mut().rev() {
                 let mut coords: Vec<_> = Vec::new();
-                for (coord, ids) in coord_group.iter_mut() {
+                for (coord, ids) in coord_group.iter_mut().rev() {
                     // reverse sort
                     ids.sort_by(|a, b| b.cmp(a));
                     ids.dedup();
@@ -90,7 +90,6 @@ impl GridStoreBuilder {
             let db_data = fb_builder.finished_data();
 
             db.put(&db_key, &db_data)?;
-            println!("{:?} {:?}", db_key, db_data);
         }
         drop(db);
         Ok(())
