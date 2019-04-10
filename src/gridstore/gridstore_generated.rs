@@ -257,3 +257,24 @@ impl<'a: 'b, 'b> PhraseRecordBuilder<'a, 'b> {
   }
 }
 
+#[inline]
+pub fn get_root_as_phrase_record<'a>(buf: &'a [u8]) -> PhraseRecord<'a> {
+  flatbuffers::get_root::<PhraseRecord<'a>>(buf)
+}
+
+#[inline]
+pub fn get_size_prefixed_root_as_phrase_record<'a>(buf: &'a [u8]) -> PhraseRecord<'a> {
+  flatbuffers::get_size_prefixed_root::<PhraseRecord<'a>>(buf)
+}
+
+#[inline]
+pub fn finish_phrase_record_buffer<'a, 'b>(
+    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    root: flatbuffers::WIPOffset<PhraseRecord<'a>>) {
+  fbb.finish(root, None);
+}
+
+#[inline]
+pub fn finish_size_prefixed_phrase_record_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<PhraseRecord<'a>>) {
+  fbb.finish_size_prefixed(root, None);
+}
