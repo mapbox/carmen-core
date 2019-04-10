@@ -11,3 +11,5 @@ table RelevScore {
 table PhraseRecord {
     relev_scores: [RelevScore];
 }
+
+root_type PhraseRecord;

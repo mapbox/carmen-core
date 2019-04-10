@@ -5,7 +5,6 @@ use std::path::{ Path, PathBuf };
 use itertools::Itertools;
 use morton::interleave_morton;
 use rocksdb::DB;
-use byteorder::{BigEndian, WriteBytesExt};
 
 use crate::gridstore::common::*;
 use crate::gridstore::gridstore_generated::*;
@@ -15,14 +14,6 @@ type BuilderEntry = BTreeMap<u8, BTreeMap<u32, Vec<u32>>>;
 pub struct GridStoreBuilder {
     path: PathBuf,
     data: BTreeMap<GridKey, BuilderEntry>
-}
-
-#[inline]
-fn relev_float_to_int(relev: f32) -> u8 {
-    if relev == 0.4 { 0 }
-    else if relev == 0.6 { 1 }
-    else if relev == 0.8 { 2 }
-    else { 3 }
 }
 
 /// Extends a BuildEntry with the given values.
@@ -68,25 +59,11 @@ impl GridStoreBuilder {
     pub fn finish(mut self) -> Result<(), Box<Error>> {
         let db = DB::open_default(&self.path)?;
         let mut db_key: Vec<u8> = Vec::with_capacity(MAX_KEY_LENGTH);
-        let mut lang_set: Vec<u8> = Vec::with_capacity(16);
         for (grid_key, value) in self.data.iter_mut() {
             // figure out the key
             db_key.clear();
             // type marker is 0 -- regular entry
-            db_key.push(0);
-            // next goes the ID
-            db_key.write_u32::<BigEndian>(grid_key.phrase_id)?;
-            // now the language ID
-            match grid_key.lang_set {
-                std::u128::MAX => { /* do nothing -- this is the all-languages marker */ },
-                0 => { db_key.push(0); },
-                _ => {
-                    lang_set.clear();
-                    lang_set.write_u128::<BigEndian>(grid_key.lang_set)?;
-                    let iter = lang_set.iter().skip_while(|byte| **byte == 0u8);
-                    db_key.extend(iter);
-                }
-            }
+            grid_key.write_to(0, &mut db_key)?;
 
             // figure out the value
             let mut fb_builder = flatbuffers::FlatBufferBuilder::new();
