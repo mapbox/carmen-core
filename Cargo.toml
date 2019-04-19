@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Andrew Pendleton <andrew@mapbox.com>"]
 edition = "2018"
 
+[lib]
+path = "rust-src/src/lib.rs"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 morton = { git = "https://github.com/apendleton/morton.git", rev = "d892e8f2759aa2de29629232946db47924f1802e" }
