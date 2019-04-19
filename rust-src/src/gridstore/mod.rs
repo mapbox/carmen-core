@@ -1,10 +1,10 @@
-mod common;
 mod builder;
-mod store;
+mod common;
 mod gridstore_generated;
+mod store;
 
-pub use common::*;
 pub use builder::*;
+pub use common::*;
 pub use store::*;
 
 #[test]
@@ -17,7 +17,7 @@ fn combined_test() {
     let mut entries = vec![
         GridEntry { id: 2, x: 2, y: 2, relev: 0.8, score: 3, source_phrase_hash: 0 },
         GridEntry { id: 3, x: 3, y: 3, relev: 1., score: 1, source_phrase_hash: 1 },
-        GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 7, source_phrase_hash: 2 }
+        GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 7, source_phrase_hash: 2 },
     ];
     builder.insert(&key, &entries).expect("Unable to insert record");
 
@@ -46,7 +46,7 @@ fn phrase_hash_test() {
     let mut entries = vec![
         GridEntry { id: 1, x: 1, y: 1, relev: 1.0, score: 1, source_phrase_hash: 0 },
         GridEntry { id: 1, x: 1, y: 1, relev: 0.6, score: 1, source_phrase_hash: 2 },
-        GridEntry { id: 1, x: 1, y: 1, relev: 0.4, score: 1, source_phrase_hash: 3 }
+        GridEntry { id: 1, x: 1, y: 1, relev: 0.4, score: 1, source_phrase_hash: 3 },
     ];
     builder.insert(&key, &entries).expect("Unable to insert record");
 
@@ -69,7 +69,7 @@ fn cover_test() {
     let entries = vec![
         GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 1, source_phrase_hash: 0 },
         GridEntry { id: 1, x: 1, y: 2, relev: 1., score: 1, source_phrase_hash: 0 },
-        GridEntry { id: 1, x: 2, y: 1, relev: 1., score: 1, source_phrase_hash: 0 }
+        GridEntry { id: 1, x: 2, y: 1, relev: 1., score: 1, source_phrase_hash: 0 },
     ];
     builder.insert(&key, &entries).expect("Unable to insert record");
 

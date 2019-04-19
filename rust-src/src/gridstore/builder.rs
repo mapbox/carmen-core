@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::path::{ Path, PathBuf };
+use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 use morton::interleave_morton;
@@ -13,19 +13,19 @@ type BuilderEntry = BTreeMap<u8, BTreeMap<u32, Vec<u32>>>;
 
 pub struct GridStoreBuilder {
     path: PathBuf,
-    data: BTreeMap<GridKey, BuilderEntry>
+    data: BTreeMap<GridKey, BuilderEntry>,
 }
 
 /// Extends a BuildEntry with the given values.
 fn extend_entries(builder_entry: &mut BuilderEntry, values: &[GridEntry]) -> () {
-    for (rs, values) in &values.into_iter().group_by(|value| (relev_float_to_int(value.relev) << 4) | value.score) {
-        let rs_entry = builder_entry
-            .entry(rs)
-            .or_insert_with(|| BTreeMap::new());
-        for (zcoord, values) in &values.into_iter().group_by(|value| interleave_morton(value.x, value.y)) {
-            let zcoord_entry = rs_entry
-                .entry(zcoord)
-                .or_insert_with(|| Vec::new());
+    for (rs, values) in
+        &values.into_iter().group_by(|value| (relev_float_to_int(value.relev) << 4) | value.score)
+    {
+        let rs_entry = builder_entry.entry(rs).or_insert_with(|| BTreeMap::new());
+        for (zcoord, values) in
+            &values.into_iter().group_by(|value| interleave_morton(value.x, value.y))
+        {
+            let zcoord_entry = rs_entry.entry(zcoord).or_insert_with(|| Vec::new());
             for value in values {
                 let id_phrase: u32 = (value.id << 8) | (value.source_phrase_hash as u32);
                 zcoord_entry.push(id_phrase);
@@ -76,15 +76,24 @@ impl GridStoreBuilder {
                     ids.dedup();
 
                     let fb_ids = fb_builder.create_vector(&ids);
-                    let fb_coord = Coord::create(&mut fb_builder, &CoordArgs{coord: *coord, ids: Some(fb_ids)});
+                    let fb_coord = Coord::create(
+                        &mut fb_builder,
+                        &CoordArgs { coord: *coord, ids: Some(fb_ids) },
+                    );
                     coords.push(fb_coord);
                 }
                 let fb_coords = fb_builder.create_vector(&coords);
-                let fb_rs = RelevScore::create(&mut fb_builder, &RelevScoreArgs{relev_score: *rs, coords: Some(fb_coords)});
+                let fb_rs = RelevScore::create(
+                    &mut fb_builder,
+                    &RelevScoreArgs { relev_score: *rs, coords: Some(fb_coords) },
+                );
                 rses.push(fb_rs);
             }
             let fb_rses = fb_builder.create_vector(&rses);
-            let record = PhraseRecord::create(&mut fb_builder, &PhraseRecordArgs{relev_scores: Some(fb_rses)});
+            let record = PhraseRecord::create(
+                &mut fb_builder,
+                &PhraseRecordArgs { relev_scores: Some(fb_rses) },
+            );
             fb_builder.finish(record, None);
 
             let db_data = fb_builder.finished_data();
@@ -96,22 +105,17 @@ impl GridStoreBuilder {
     }
 }
 
-#[cfg(test)] use tempfile;
+#[cfg(test)]
+use tempfile;
 
 #[test]
 fn extend_entry_test() {
     let mut entry = BuilderEntry::new();
 
-    extend_entries(&mut entry, &vec![
-        GridEntry {
-            id: 1,
-            x: 1,
-            y: 1,
-            relev: 1.,
-            score: 7,
-            source_phrase_hash: 2
-        }
-    ]);
+    extend_entries(
+        &mut entry,
+        &vec![GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 7, source_phrase_hash: 2 }],
+    );
 
     // relev 3 (0011) with score 7 (0111) -> 55
     let grids = entry.get(&55);
@@ -131,32 +135,16 @@ fn insert_test() {
 
     let key = GridKey { phrase_id: 1, lang_set: 1 };
 
-    builder.insert(&key, &vec![
-        GridEntry {
-            id: 2,
-            x: 2,
-            y: 2,
-            relev: 0.8,
-            score: 3,
-            source_phrase_hash: 0
-        },
-        GridEntry {
-            id: 3,
-            x: 3,
-            y: 3,
-            relev: 1.,
-            score: 1,
-            source_phrase_hash: 1
-        },
-        GridEntry {
-            id: 1,
-            x: 1,
-            y: 1,
-            relev: 1.,
-            score: 7,
-            source_phrase_hash: 2
-        }
-    ]).expect("Unable to insert record");
+    builder
+        .insert(
+            &key,
+            &vec![
+                GridEntry { id: 2, x: 2, y: 2, relev: 0.8, score: 3, source_phrase_hash: 0 },
+                GridEntry { id: 3, x: 3, y: 3, relev: 1., score: 1, source_phrase_hash: 1 },
+                GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 7, source_phrase_hash: 2 },
+            ],
+        )
+        .expect("Unable to insert record");
 
     assert_ne!(builder.path.to_str(), None);
     assert_eq!(builder.data.len(), 1, "Gridstore has one entry");
@@ -175,35 +163,22 @@ fn append_test() {
 
     let key = GridKey { phrase_id: 1, lang_set: 1 };
 
-    builder.insert(&key, &vec![
-        GridEntry {
-            id: 2,
-            x: 2,
-            y: 2,
-            relev: 0.8,
-            score: 3,
-            source_phrase_hash: 0
-        }
-    ]).expect("Unable to insert record");
+    builder
+        .insert(
+            &key,
+            &vec![GridEntry { id: 2, x: 2, y: 2, relev: 0.8, score: 3, source_phrase_hash: 0 }],
+        )
+        .expect("Unable to insert record");
 
-    builder.append(&key, &vec![
-        GridEntry {
-            id: 3,
-            x: 3,
-            y: 3,
-            relev: 1.,
-            score: 1,
-            source_phrase_hash: 1
-        },
-        GridEntry {
-            id: 1,
-            x: 1,
-            y: 1,
-            relev: 1.,
-            score: 7,
-            source_phrase_hash: 2
-        }
-    ]).expect("Unable to append grids");
+    builder
+        .append(
+            &key,
+            &vec![
+                GridEntry { id: 3, x: 3, y: 3, relev: 1., score: 1, source_phrase_hash: 1 },
+                GridEntry { id: 1, x: 1, y: 1, relev: 1., score: 7, source_phrase_hash: 2 },
+            ],
+        )
+        .expect("Unable to append grids");
 
     assert_ne!(builder.path.to_str(), None);
     assert_eq!(builder.data.len(), 1, "Gridstore has one entry");

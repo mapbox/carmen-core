@@ -1,23 +1,26 @@
 use std::error::Error;
 use std::path::Path;
 
-use morton::deinterleave_morton;
-use rocksdb::{DB, IteratorMode, Direction};
-use flatbuffers;
 use byteorder::{LittleEndian, ReadBytesExt};
+use flatbuffers;
+use morton::deinterleave_morton;
+use rocksdb::{Direction, IteratorMode, DB};
 
 use crate::gridstore::common::*;
 use crate::gridstore::gridstore_generated::*;
 
 pub struct GridStore {
-    db: DB
+    db: DB,
 }
 
 // this is a bit of a hack -- it constructs a flatbuffers vector bounded by the lifetime
 // of the underlying buffer, rather than by the lifetime of its parent vector, in the event
 // that vectors are nested
-fn get_vector<'a, T: 'a>(buf: &'a [u8], table: &flatbuffers::Table, field: flatbuffers::VOffsetT)
-    -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<T>>> {
+fn get_vector<'a, T: 'a>(
+    buf: &'a [u8],
+    table: &flatbuffers::Table,
+    field: flatbuffers::VOffsetT,
+) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<T>>> {
     let o = table.vtable().get(field) as usize;
     if o == 0 {
         return None;
@@ -35,7 +38,10 @@ impl GridStore {
         Ok(GridStore { db })
     }
 
-    pub fn get(&self, key: &GridKey) -> Result<Option<impl Iterator<Item=GridEntry>>, Box<Error>> {
+    pub fn get(
+        &self,
+        key: &GridKey,
+    ) -> Result<Option<impl Iterator<Item = GridEntry>>, Box<Error>> {
         let mut db_key: Vec<u8> = Vec::new();
         key.write_to(0, &mut db_key)?;
 
@@ -53,7 +59,12 @@ impl GridStore {
                     (value, static_ref)
                 };
                 let record = get_root_as_phrase_record(record_ref.1);
-                let rs_vec = get_vector::<RelevScore>(record_ref.1, &record._tab, PhraseRecord::VT_RELEV_SCORES).unwrap();
+                let rs_vec = get_vector::<RelevScore>(
+                    record_ref.1,
+                    &record._tab,
+                    PhraseRecord::VT_RELEV_SCORES,
+                )
+                .unwrap();
 
                 let iter = rs_vec.iter().flat_map(move |rs_obj| {
                     let relev_score = rs_obj.relev_score();
@@ -61,7 +72,9 @@ impl GridStore {
                     // mask for the least significant four bits
                     let score = relev_score & 15;
 
-                    let coords = get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS).unwrap();
+                    let coords =
+                        get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS)
+                            .unwrap();
 
                     coords.into_iter().flat_map(move |coords_obj| {
                         let (x, y) = deinterleave_morton(coords_obj.coord());
@@ -74,17 +87,21 @@ impl GridStore {
                     })
                 });
                 Some(iter)
-            },
+            }
             None => None,
         })
     }
 
     // this is only called this because of inertia -- I'm open to a rename
-    pub fn get_matching(&self, match_key: &MatchKey) -> Result<impl Iterator<Item=MatchEntry>, Box<Error>> {
+    pub fn get_matching(
+        &self,
+        match_key: &MatchKey,
+    ) -> Result<impl Iterator<Item = MatchEntry>, Box<Error>> {
         let mut db_key: Vec<u8> = Vec::new();
         match_key.write_start_to(0, &mut db_key)?;
 
-        let db_iter = self.db
+        let db_iter = self
+            .db
             .iterator(IteratorMode::From(&db_key, Direction::Forward))
             .take_while(|(k, _)| match_key.matches_key(k).unwrap());
         let mut lang_match_refs: Vec<(Box<[u8]>, &'static [u8])> = Vec::new();
@@ -109,7 +126,12 @@ impl GridStore {
 
             ref_set.into_iter().flat_map(move |record_ref| {
                 let record = get_root_as_phrase_record(record_ref.1);
-                let rs_vec = get_vector::<RelevScore>(record_ref.1, &record._tab, PhraseRecord::VT_RELEV_SCORES).unwrap();
+                let rs_vec = get_vector::<RelevScore>(
+                    record_ref.1,
+                    &record._tab,
+                    PhraseRecord::VT_RELEV_SCORES,
+                )
+                .unwrap();
 
                 rs_vec.iter().flat_map(move |rs_obj| {
                     let relev_score = rs_obj.relev_score();
@@ -117,7 +139,9 @@ impl GridStore {
                     // mask for the least significant four bits
                     let score = relev_score & 15;
 
-                    let coords = get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS).unwrap();
+                    let coords =
+                        get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS)
+                            .unwrap();
 
                     coords.into_iter().flat_map(move |coords_obj| {
                         let (x, y) = deinterleave_morton(coords_obj.coord());
@@ -126,8 +150,15 @@ impl GridStore {
                             let id = id_comp >> 8;
                             let source_phrase_hash = (id_comp & 255) as u8;
                             MatchEntry {
-                                grid_entry: GridEntry { relev, score, x, y, id, source_phrase_hash },
-                                matches_language: matches_language
+                                grid_entry: GridEntry {
+                                    relev,
+                                    score,
+                                    x,
+                                    y,
+                                    id,
+                                    source_phrase_hash,
+                                },
+                                matches_language: matches_language,
                             }
                         })
                     })
