@@ -2,6 +2,7 @@ mod builder;
 mod common;
 mod gridstore_generated;
 mod store;
+mod spatial;
 
 pub use builder::*;
 pub use common::*;
