@@ -17,20 +17,20 @@ npm install --global neon-cli
 yarn global add neon-cli
 ```
 
-`carmen-core` requires node-gyp, which [only works with python 2](https://github.com/nodejs/node-gyp/issues/1337). If you use [pyenv](https://github.com/pyenv/pyenv) to manage python versions, the `.python-version ` file checked into this repo should be sufficient. Otherwise, try the instructions in [this comment](https://github.com/nodejs/node-gyp/issues/1337#issuecomment-370135532):
+`carmen-core` requires node-gyp, which [only works with python 2](https://github.com/nodejs/node-gyp/issues/1337). If you use [pyenv](https://github.com/pyenv/pyenv) to manage python versions, the `.python-version ` file checked into this repo should be sufficient. Otherwise, try the instructions in [this comment](https://github.com/nodejs/node-gyp/issues/1337#issuecomment-370135532) (modified to use yarn):
 
 ```
 brew install python@2
 # follow the instructions printed after installing `python@2` to get python 2 on your PATH 
 # e.g. echo 'export PATH="/usr/local/opt/python@2/bin:$PATH"' >> ~/.bashrc
-npm config set python python2.7
+yarn config set python python2.7
 ```
 
 
 To install `carmen-core` run:
 
 ```
-npm install
+yarn install
 ```
 
 To build from source run:
