@@ -1,10 +1,11 @@
 use flatbuffers;
 use crate::gridstore::gridstore_generated::*;
 use morton::interleave_morton;
+use std::cmp::Ordering::{self, Less, Equal, Greater};
 
-fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: (u16, u16, u16, u16)) -> Result<u32, u32> 
+fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: (u16, u16, u16, u16)) -> Result<usize, usize>
 {
-    let _min = interleave_morton(bbox.0, bbox.1);
+    let min = interleave_morton(bbox.0, bbox.1);
     let _max = interleave_morton(bbox.2, bbox.3);
 
     let mut size = coords.len();
@@ -16,16 +17,16 @@ fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<
 
     let mut base = 0usize;
     while size > 1 {
-    //    let half = size / 2;
-    //    let mid =  base + half;
-    //    base = if min < 
+        let half = size / 2;
+        let mid = base + half;
+
+        let v = coords.get(mid).coord();
+        let cmp = v.cmp(&min);
+        base = if cmp == Greater { base } else { mid };
+        size -= half;
     }
-    println!("{:?}", &size);
-
-    let cmp = coords.get(base);
-    println!("{:?}", cmp);
-
-    Ok(42)
+    let cmp = coords.get(base).coord().cmp(&min);
+    if cmp == Equal { Ok(base) } else { Err(base + (cmp == Less) as usize ) }
 }
 
 #[cfg(test)]
@@ -59,9 +60,6 @@ mod test {
         let rs = flatbuffers::get_root::<RelevScore>(&data);
 
         let coords = rs.coords().unwrap();
-
-        // This works fine here, but not in bbox_filter..
-        //println!("{:?}", coords.get(0).coord());
 
         let _result = bbox_filter(coords, (0,0,1,1));
     }
