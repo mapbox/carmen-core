@@ -12,6 +12,7 @@ use rocksdb::{Direction, IteratorMode, DB};
 
 use crate::gridstore::common::*;
 use crate::gridstore::gridstore_generated::*;
+use crate::gridstore::spatial;
 
 pub struct GridStore {
     db: DB,
@@ -196,10 +197,10 @@ impl GridStore {
         match_opts: &MatchOpts,
     ) -> Result<Box<dyn Iterator<Item = MatchEntry>>, Box<Error>> {
         match match_opts {
-            MatchOpts { bbox: None, .. } => Ok(Box::new(self.global_get_matching(match_key)?)),
+            MatchOpts { bbox: None, .. } => Ok(Box::new(self.global_get_matching(match_key, &match_opts)?)),
             MatchOpts { bbox: Some(bbox), .. } => {
                 let bbox: [u16; 4] = bbox.clone();
-                let out = self.global_get_matching(match_key)?.filter(move |entry| {
+                let out = self.global_get_matching(match_key, &match_opts)?.filter(move |entry| {
                     entry.grid_entry.x >= bbox[0]
                         && entry.grid_entry.x <= bbox[2]
                         && entry.grid_entry.y >= bbox[1]
@@ -213,9 +214,12 @@ impl GridStore {
     fn global_get_matching(
         &self,
         match_key: &MatchKey,
+        match_opts: &MatchOpts,
     ) -> Result<impl Iterator<Item = MatchEntry>, Box<Error>> {
         let mut db_key: Vec<u8> = Vec::new();
         match_key.write_start_to(0, &mut db_key)?;
+
+        let match_opts = match_opts.clone();
 
         let db_iter = self
             .db
@@ -259,13 +263,18 @@ impl GridStore {
                     // mask for the least significant four bits
                     let score = relev_score & 15;
 
-                    let coords =
-                        get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS)
-                            .unwrap();
+                    let coords_vec = get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS).unwrap();
+                    let coords = match match_opts {
+                        MatchOpts { bbox: None, .. } => Box::new(coords_vec.into_iter()) as Box<Iterator<Item=Coord>>,
+                        MatchOpts { bbox: Some(bbox), .. } => {
+                            let bbox: [u16; 4] = bbox.clone();
+                            Box::new(spatial::bbox_filter(coords_vec, bbox)) as Box<Iterator<Item=Coord>>
+                        },
+                    };
 
                     let slot =
                         coords_for_rs.entry((OrderedFloat(relev), score)).or_insert_with(|| vec![]);
-                    slot.push(coords.into_iter());
+                    slot.push(coords);
                 }
             }
 
