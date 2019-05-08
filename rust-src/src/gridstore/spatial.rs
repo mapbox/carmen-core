@@ -32,6 +32,31 @@ fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<
     if cmp == Equal { Ok(base) } else { Err(base + (cmp == Less) as u32 ) }
 }
 
+
+fn flatbuffer_generator<'a>(min: u32, max: u32) -> Vec<u8> {
+    let mut fb_builder = flatbuffers::FlatBufferBuilder::new_with_capacity(256);
+    let mut coords: Vec<_> = Vec::new();
+
+    let ids: Vec<u32> = vec![min; max as usize];
+    for i in min..max {
+        let fb_ids = fb_builder.create_vector(&ids);
+        let fb_coord = Coord::create(&mut fb_builder, &CoordArgs{
+            coord: i as u32,
+            ids: Some(fb_ids)
+        });
+        coords.push(fb_coord);
+    }
+    let fb_coords = fb_builder.create_vector(&coords);
+
+    let fb_rs = RelevScore::create(
+        &mut fb_builder,
+        &RelevScoreArgs { relev_score: 1, coords: Some(fb_coords) },
+    );
+    fb_builder.finish(fb_rs, None);
+    let data = fb_builder.finished_data();
+    Vec::from(data)
+}
+
 #[cfg(test)]
 mod test {
     // TO DO:
@@ -48,31 +73,9 @@ mod test {
     use super::*;
 
     #[test]
-    fn bbox_text() {
-        let mut fb_builder = flatbuffers::FlatBufferBuilder::new_with_capacity(256);
-        {
-            let mut coords: Vec<_> = Vec::new();
-            let ids: Vec<u32> = vec![0; 4];
-            for i in 0..ids.len() {
-                let fb_ids = fb_builder.create_vector(&ids);
-                let fb_coord = Coord::create(&mut fb_builder, &CoordArgs{
-                    coord: i as u32,
-                    ids: Some(fb_ids)
-                });
-                coords.push(fb_coord);
-            }
-            let fb_coords = fb_builder.create_vector(&coords);
-
-            let fb_rs = RelevScore::create(
-                &mut fb_builder,
-                &RelevScoreArgs { relev_score: 1, coords: Some(fb_coords) },
-            );
-            fb_builder.finish(fb_rs, None);
-        }
-        let data = fb_builder.finished_data();
-
-        let rs = flatbuffers::get_root::<RelevScore>(&data);
-
+    fn coords_within_bbox() {
+        let buffer = flatbuffer_generator(0, 4);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
         let result = bbox_filter(&coords, [0,0,1,1]).collect::<Vec<Coord>>();
         assert_eq!(result.len(), 3);
