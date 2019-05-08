@@ -34,6 +34,17 @@ fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<
 
 #[cfg(test)]
 mod test {
+    // TO DO:
+    // move the generator into a helper -- should take an iterator and generate the flatbuffer, also takes min max and number of entries
+    // case 1: when size is zero iterator over an empty vector
+    // case 2: when the bbox is before the points should return iterator over an empty vector
+    // case 3: when bbox is after the points should return iterator over an empty vector
+    // case 4: when the z-order leaves the bbox should be captured (right now it's filtered out at the end)
+    // case 5: when all the points are in the bbox
+    // case 5: when bbox starts in the middle of the result set and ends beyond
+    // case 6: when the bbox starts and ends in the middle of the result set
+    // case 7: when it starts before the result set and ends in between
+    // case 8: variation of case 4 where the z-order leaves but the bbox contains points to be returned
     use super::*;
 
     #[test]
