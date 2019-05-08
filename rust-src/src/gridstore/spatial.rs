@@ -92,4 +92,38 @@ mod test {
         let result = bbox_filter(coords, [0,0,1,1]).collect::<Vec<Coord>>();
         assert_eq!(result.len(), 3);
     }
+
+    #[test]
+    fn binary_search() {
+        let buffer = flatbuffer_generator(4, 8); // [4,5,6,7]
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+
+        let r = bbox_binary_search(&coords, 0, 0);
+        assert_eq!(r, Err(0)); // locates first element
+
+        let r = bbox_binary_search(&coords, 4, 0);
+        assert_eq!(r, Ok(0)); // locates first value
+
+        let r = bbox_binary_search(&coords, 4, 1);
+        assert_eq!(r, Err(1)); // locates first element for given offset.
+
+        let r = bbox_binary_search(&coords, 5, 0);
+        assert_eq!(r, Err(1)); // locates first value ...Why Err?
+
+        let r = bbox_binary_search(&coords, 6, 0);
+        assert_eq!(r, Err(2)); // locates first value ...Why Err?
+
+        let r = bbox_binary_search(&coords, 7, 0);
+        assert_eq!(r, Err(3)); // Wait, what why? ...we should be finding the end w/ Ok
+
+        let r = bbox_binary_search(&coords, 7, 3);
+        assert_eq!(r, Ok(3)); // Wait, what why? ...should be finding the end w/ Ok here too
+
+        let r = bbox_binary_search(&coords, 7, 4);
+        assert_eq!(r, Err(4)); // Offset is out of bounds
+
+        let r = bbox_binary_search(&coords, 8, 0);
+        assert_eq!(r, Err(4)); // Fails to find value, returns closes pos, the end
+    }
 }
