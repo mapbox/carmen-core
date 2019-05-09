@@ -265,16 +265,22 @@ impl GridStore {
 
                     let coords_vec = get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS).unwrap();
                     let coords = match match_opts {
-                        MatchOpts { bbox: None, .. } => Box::new(coords_vec.into_iter()) as Box<Iterator<Item=Coord>>,
+                        MatchOpts { bbox: None, .. } => Some(Box::new(coords_vec.into_iter()) as Box<Iterator<Item=Coord>>),
                         MatchOpts { bbox: Some(bbox), .. } => {
                             let bbox: [u16; 4] = bbox.clone();
-                            Box::new(spatial::bbox_filter(coords_vec, bbox).unwrap()) as Box<Iterator<Item=Coord>>
+                            let res = spatial::bbox_filter(coords_vec, bbox);
+                            match res {
+                                Some(v) => Some(Box::new(v) as Box<Iterator<Item=Coord>>),
+                                None => None,
+                            }
                         },
                     };
 
-                    let slot =
-                        coords_for_rs.entry((OrderedFloat(relev), score)).or_insert_with(|| vec![]);
-                    slot.push(coords);
+                    if coords.is_some() {
+                        let slot =
+                            coords_for_rs.entry((OrderedFloat(relev), score)).or_insert_with(|| vec![]);
+                        slot.push(coords.unwrap());
+                    }
                 }
             }
 
