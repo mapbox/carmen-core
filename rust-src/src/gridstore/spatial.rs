@@ -19,7 +19,13 @@ pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOff
     (start..end).map(move |idx| coords.get(idx as usize))
 }
 
-// Essentially a copy paste from core/slice/mod.rs binary_search_by
+/// Binary search this FlatBuffers Coord Vector
+///
+/// Derived from binary_search_by in core/slice/mod.rs
+///
+/// If val is found within the range captured by Vector with given offset [`Result::Ok`] is returned, containing the
+/// index of the matching element. If the value is less than the first element and greater than the last,
+/// [`Result::Err'] is returned containing either 0 or the length of the Vector.
 fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<Coord>>, val: u32, offset: u32) -> Result<u32, u32> {
     let mut size = coords.len() as u32;
     assert!(size.cmp(&offset) != Less, "Offset is larger than Vector");
@@ -93,32 +99,53 @@ mod test {
     #[test]
     fn binary_search() {
         // TODO
-        // - Test against and empty flatbuffer vector
-        // - Test against sparsely populated flatbuffer vector
         // - Determine if to return Result and how to handle out of bounds reads
 
+        // Empty Coord list
+        let empty: Vec<u32> = vec![];
+        let buffer = flatbuffer_generator(empty.into_iter());
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        assert_eq!(bbox_binary_search(&coords, 0, 0), Err(0));
+        assert_eq!(bbox_binary_search(&coords, 1, 0), Err(0));
 
-        let single_entry: Vec<u32> = vec![0];
-        let buffer = flatbuffer_generator(single_entry.into_iter());
+        // Single Coord list
+        let single: Vec<u32> = vec![0];
+        let buffer = flatbuffer_generator(single.into_iter());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
 
         assert_eq!(bbox_binary_search(&coords, 0, 0), Ok(0));
         assert_eq!(bbox_binary_search(&coords, 1, 0), Err(1));
 
-        // Should Panic
-        //let r = bbox_binary_search(&coords, 1, 1);
-        //assert_eq!(r, Err(0));
-
+        // Continuous Coord list
         let buffer = flatbuffer_generator(4..8); // [4,5,6,7]
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
 
-        assert_eq!(bbox_binary_search(&coords, 0, 0), Err(0)); // locates first element
-        assert_eq!(bbox_binary_search(&coords, 4, 0), Ok(0)); // locates first value
-        assert_eq!(bbox_binary_search(&coords, 4, 1), Err(1)); // locates first element for given offset.
+        assert_eq!(bbox_binary_search(&coords, 0, 0), Err(0));
+        assert_eq!(bbox_binary_search(&coords, 4, 0), Ok(0));
+        assert_eq!(bbox_binary_search(&coords, 4, 1), Err(1));
         assert_eq!(bbox_binary_search(&coords, 5, 0), Ok(1));
         assert_eq!(bbox_binary_search(&coords, 6, 0), Ok(2));
+        assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(3));
+        assert_eq!(bbox_binary_search(&coords, 7, 3), Ok(3));
+        assert_eq!(bbox_binary_search(&coords, 7, 4), Err(4)); // Offset is out of bounds
+        assert_eq!(bbox_binary_search(&coords, 8, 0), Err(4)); // Fails to find value, returns closes pos, the end
+
+        // Sparse Coord list
+        let sparse: Vec<u32> = vec![1,2,4,7];
+        let buffer = flatbuffer_generator(sparse.into_iter());
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+
+        assert_eq!(bbox_binary_search(&coords, 0, 0), Err(0));
+        assert_eq!(bbox_binary_search(&coords, 1, 0), Ok(0));
+        assert_eq!(bbox_binary_search(&coords, 1, 1), Err(1));
+        assert_eq!(bbox_binary_search(&coords, 2, 0), Ok(1));
+        //assert_eq!(bbox_binary_search(&coords, 3, 0), Ok(2));
+        assert_eq!(bbox_binary_search(&coords, 4, 0), Ok(2));
+        //assert_eq!(bbox_binary_search(&coords, 5, 0), Ok(3));
         assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(3));
         assert_eq!(bbox_binary_search(&coords, 7, 3), Ok(3));
         assert_eq!(bbox_binary_search(&coords, 7, 4), Err(4)); // Offset is out of bounds
