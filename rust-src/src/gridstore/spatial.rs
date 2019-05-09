@@ -84,11 +84,6 @@ fn flatbuffer_generator<T: Iterator<Item=u32>>(val: T) -> Vec<u8>{
 
 #[cfg(test)]
 mod test {
-    // TO DO:
-    // case 5: when all the points are in the bbox
-    // case 5: when bbox starts in the middle of the result set and ends beyond
-    // case 6: when the bbox starts and ends in the middle of the result set
-    // case 7: when it starts before the result set and ends in between
     use super::*;
 
     #[test]
@@ -109,7 +104,19 @@ mod test {
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
         let result = bbox_filter(coords, [0,0,1,1]).unwrap().collect::<Vec<Coord>>();
-        assert_eq!(result.len(), 3, "starts before bbox and ends between the result set");
+        assert_eq!(result.len(), 2, "starts before bbox and ends between the result set");
+
+        let buffer = flatbuffer_generator(2..4);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [1,1,3,1]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 1, "starts in the bbox and ends after the result set");
+
+        let buffer = flatbuffer_generator(1..4);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [0,1,1,1]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 2, "starts in the bbox and ends in the bbox");
 
         let buffer = flatbuffer_generator(5..7);
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
