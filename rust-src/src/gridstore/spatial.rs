@@ -3,7 +3,7 @@ use crate::gridstore::gridstore_generated::*;
 use morton::interleave_morton;
 use std::cmp::Ordering::{Less, Equal, Greater};
 
-pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: [u16; 4]) -> Option<impl Iterator<Item=Coord<'a>>> {
+pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>, bbox: [u16; 4]) -> Option<impl Iterator<Item=Coord<'a>>> {
     let min = interleave_morton(bbox[0], bbox[1]);
     let max = interleave_morton(bbox[2], bbox[3]);
     debug_assert!(min.cmp(&max) != Greater, "Invalid bounding box");
@@ -127,12 +127,12 @@ mod test {
         assert_eq!(bbox_filter(coords, [0,0,0,1]).is_none(), true, "bbox ends before the range of coordinates");
         assert_eq!(bbox_filter(coords, [4,0,4,1]).is_none(), true, "bbox starts after the range of coordinates");
 
-        let sparse: Vec<u32> = vec![42, 7];
+        let sparse: Vec<u32> = vec![24, 7];
         let buffer = flatbuffer_generator(sparse.into_iter());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
         let result = bbox_filter(coords, [3,1,4,2]).unwrap().collect::<Vec<Coord>>();
-        assert_eq!(result.len(), 1, "sparse result set that spans z-order jumps"); // TODO should be 2
+        assert_eq!(result.len(), 2, "sparse result set that spans z-order jumps");
 
         let buffer = flatbuffer_generator((7..24).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
@@ -183,7 +183,7 @@ mod test {
         assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(0));
         assert_eq!(bbox_binary_search(&coords, 7, 3), Err(3));
         assert_eq!(bbox_binary_search(&coords, 7, 4), Err(4)); // Offset is out of bounds
-        assert_eq!(bbox_binary_search(&coords, 8, 0), Err(0)); // Fails to find value, returns closest index 
+        assert_eq!(bbox_binary_search(&coords, 8, 0), Err(0)); // Fails to find value, returns closest index
 
         // Sparse Coord list
         let sparse: Vec<u32> = vec![7,4,2,1];
