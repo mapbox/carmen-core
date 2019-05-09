@@ -3,20 +3,30 @@ use crate::gridstore::gridstore_generated::*;
 use morton::interleave_morton;
 use std::cmp::Ordering::{Less, Equal, Greater};
 
-pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: [u16; 4]) -> impl Iterator<Item=Coord<'a>> {
+pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: [u16; 4]) -> Option<impl Iterator<Item=Coord<'a>>> {
     let min = interleave_morton(bbox[0], bbox[1]);
     let max = interleave_morton(bbox[2], bbox[3]);
     debug_assert!(min.cmp(&max) != Greater, "Invalid bounding box");
+
+    let len = coords.len();
+    if len == 0 { return None; }
+    let range_min = coords.get(0).coord();
+    if max < range_min { return None; }
+    let range_max = coords.get(len - 1).coord();
+    if min > range_max { return None; }
+
     let start = match bbox_binary_search(&coords, min, 0) {
         Ok(v) => v,
         Err(v) => v,
     };
-    let end = match bbox_binary_search(&coords, max, start) {
+    let mut end = match bbox_binary_search(&coords, max, start) {
         Ok(v) => v,
         Err(v) => v,
     };
+
+    if end.cmp(&(len as u32)) == Equal { end -= 1; }
     debug_assert!(start.cmp(&end) != Greater, "Start is before end");
-    (start..end).map(move |idx| coords.get(idx as usize))
+    Some((start..(end + 1)).map(move |idx| coords.get(idx as usize)))
 }
 
 /// Binary search this FlatBuffers Coord Vector
@@ -75,25 +85,57 @@ fn flatbuffer_generator<T: Iterator<Item=u32>>(val: T) -> Vec<u8>{
 #[cfg(test)]
 mod test {
     // TO DO:
-    // move the generator into a helper -- should take an iterator and generate the flatbuffer, also takes min max and number of entries
-    // case 1: when size is zero iterator over an empty vector
-    // case 2: when the bbox is before the points should return iterator over an empty vector
-    // case 3: when bbox is after the points should return iterator over an empty vector
-    // case 4: when the z-order leaves the bbox should be captured (right now it's filtered out at the end)
     // case 5: when all the points are in the bbox
     // case 5: when bbox starts in the middle of the result set and ends beyond
     // case 6: when the bbox starts and ends in the middle of the result set
     // case 7: when it starts before the result set and ends in between
-    // case 8: variation of case 4 where the z-order leaves but the bbox contains points to be returned
     use super::*;
 
     #[test]
-    fn coords_within_bbox() {
+    fn filter_bbox() {
+        let empty: Vec<u32> = vec![];
+        let buffer = flatbuffer_generator(empty.into_iter());
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        assert_eq!(bbox_filter(coords, [0,0,0,0]).is_none(), true);
+
         let buffer = flatbuffer_generator(0..4);
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [0,0,1,1]).collect::<Vec<Coord>>();
-        assert_eq!(result.len(), 3);
+        let result = bbox_filter(coords, [0,0,1,1]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 4);
+
+        let buffer = flatbuffer_generator(2..4);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [0,0,1,1]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 3, "starts before bbox and ends between the result set");
+
+        let buffer = flatbuffer_generator(5..7);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        assert_eq!(bbox_filter(coords, [0,0,0,1]).is_none(), true, "bbox ends before the range of coordinates");
+        assert_eq!(bbox_filter(coords, [4,0,4,1]).is_none(), true, "bbox starts after the range of coordinates");
+
+        let sparse: Vec<u32> = vec![7, 24];
+        let buffer = flatbuffer_generator(sparse.into_iter());
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [3,1,4,2]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 2, "sparse result set that spans z-order jumps");
+
+        let buffer = flatbuffer_generator(7..24);
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [3,1,4,2]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 17, "continuous result set that spans z-order jumps"); // TODO this should probably be 2
+
+        let sparse: Vec<u32> = vec![8];
+        let buffer = flatbuffer_generator(sparse.into_iter());
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
+        let result = bbox_filter(coords, [3,1,4,2]).unwrap().collect::<Vec<Coord>>();
+        assert_eq!(result.len(), 1, "result is on the z-order curve but not in the bbox"); // TODO should return None
     }
 
     #[test]

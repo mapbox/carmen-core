@@ -268,7 +268,7 @@ impl GridStore {
                         MatchOpts { bbox: None, .. } => Box::new(coords_vec.into_iter()) as Box<Iterator<Item=Coord>>,
                         MatchOpts { bbox: Some(bbox), .. } => {
                             let bbox: [u16; 4] = bbox.clone();
-                            Box::new(spatial::bbox_filter(coords_vec, bbox)) as Box<Iterator<Item=Coord>>
+                            Box::new(spatial::bbox_filter(coords_vec, bbox).unwrap()) as Box<Iterator<Item=Coord>>
                         },
                     };
 
