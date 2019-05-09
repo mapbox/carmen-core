@@ -33,12 +33,11 @@ fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<
         let half = size / 2;
         let mid = base + half;
         let v = coords.get(mid as usize).coord();
-        base = match v.cmp(&pos) {
-            Greater => base,
-            Equal => base,
-            Less => mid,
-        };
+        let cmp = v.cmp(&pos);
+        //println!("half {:?}, mid {:?}, v {:?}, cmp {:?}", half, mid, v, cmp);
+        base = if cmp == Greater { base } else { mid };
         size -= half;
+        //println!("base {:?}, size {:?}", base, size);
     }
     let cmp = coords.get(base as usize).coord().cmp(&pos);
     if cmp == Equal { Ok(base) } else { Err(base + (cmp == Less) as u32 ) }
@@ -109,16 +108,16 @@ mod test {
         assert_eq!(r, Err(1)); // locates first element for given offset.
 
         let r = bbox_binary_search(&coords, 5, 0);
-        assert_eq!(r, Err(1)); // locates first value ...Why Err?
+        assert_eq!(r, Ok(1));
 
         let r = bbox_binary_search(&coords, 6, 0);
-        assert_eq!(r, Err(2)); // locates first value ...Why Err?
+        assert_eq!(r, Ok(2));
 
         let r = bbox_binary_search(&coords, 7, 0);
-        assert_eq!(r, Err(3)); // Wait, what why? ...we should be finding the end w/ Ok
+        assert_eq!(r, Ok(3));
 
         let r = bbox_binary_search(&coords, 7, 3);
-        assert_eq!(r, Ok(3)); // Wait, what why? ...should be finding the end w/ Ok here too
+        assert_eq!(r, Ok(3));
 
         let r = bbox_binary_search(&coords, 7, 4);
         assert_eq!(r, Err(4)); // Offset is out of bounds
