@@ -6,6 +6,7 @@ use std::cmp::Ordering::{Less, Equal, Greater};
 pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord>>, bbox: [u16; 4]) -> impl Iterator<Item=Coord<'a>> {
     let min = interleave_morton(bbox[0], bbox[1]);
     let max = interleave_morton(bbox[2], bbox[3]);
+    debug_assert!(min.cmp(&max) != Greater, "Invalid bounding box");
     let start = match bbox_binary_search(&coords, min, 0) {
         Ok(v) => v,
         Err(v) => v,
@@ -14,16 +15,16 @@ pub fn bbox_filter<'a>(coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOff
         Ok(v) => v,
         Err(v) => v,
     };
-    assert!(start <= end, "start is before end");
+    debug_assert!(start.cmp(&end) != Greater, "Start is before end");
     (start..end).map(move |idx| coords.get(idx as usize))
 }
 
 // Essentially a copy paste from core/slice/mod.rs binary_search_by
-fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<Coord>>, pos: u32, offset: u32) -> Result<u32, u32> {
+fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<Coord>>, val: u32, offset: u32) -> Result<u32, u32> {
     let mut size = coords.len() as u32;
+    assert!(size.cmp(&offset) != Less, "Offset is larger than Vector");
     size -= offset;
 
-    // untested
     if size == 0 {
         return Err(offset);
     }
@@ -33,23 +34,20 @@ fn bbox_binary_search(coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<
         let half = size / 2;
         let mid = base + half;
         let v = coords.get(mid as usize).coord();
-        let cmp = v.cmp(&pos);
-        //println!("half {:?}, mid {:?}, v {:?}, cmp {:?}", half, mid, v, cmp);
+        let cmp = v.cmp(&val);
         base = if cmp == Greater { base } else { mid };
         size -= half;
-        //println!("base {:?}, size {:?}", base, size);
     }
-    let cmp = coords.get(base as usize).coord().cmp(&pos);
+    let cmp = coords.get(base as usize).coord().cmp(&val);
     if cmp == Equal { Ok(base) } else { Err(base + (cmp == Less) as u32 ) }
 }
 
-
-fn flatbuffer_generator<'a>(min: u32, max: u32) -> Vec<u8> {
+fn flatbuffer_generator<T: Iterator<Item=u32>>(val: T) -> Vec<u8>{
     let mut fb_builder = flatbuffers::FlatBufferBuilder::new_with_capacity(256);
     let mut coords: Vec<_> = Vec::new();
 
-    let ids: Vec<u32> = vec![min; max as usize];
-    for i in min..max {
+    let ids: Vec<u32> = vec![0];
+    for i in val {
         let fb_ids = fb_builder.create_vector(&ids);
         let fb_coord = Coord::create(&mut fb_builder, &CoordArgs{
             coord: i as u32,
@@ -85,7 +83,7 @@ mod test {
 
     #[test]
     fn coords_within_bbox() {
-        let buffer = flatbuffer_generator(0, 4);
+        let buffer = flatbuffer_generator(0..4);
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
         let result = bbox_filter(coords, [0,0,1,1]).collect::<Vec<Coord>>();
@@ -94,35 +92,36 @@ mod test {
 
     #[test]
     fn binary_search() {
-        let buffer = flatbuffer_generator(4, 8); // [4,5,6,7]
+        // TODO
+        // - Test against and empty flatbuffer vector
+        // - Test against sparsely populated flatbuffer vector
+        // - Determine if to return Result and how to handle out of bounds reads
+
+
+        let single_entry: Vec<u32> = vec![0];
+        let buffer = flatbuffer_generator(single_entry.into_iter());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
 
-        let r = bbox_binary_search(&coords, 0, 0);
-        assert_eq!(r, Err(0)); // locates first element
+        assert_eq!(bbox_binary_search(&coords, 0, 0), Ok(0));
+        assert_eq!(bbox_binary_search(&coords, 1, 0), Err(1));
 
-        let r = bbox_binary_search(&coords, 4, 0);
-        assert_eq!(r, Ok(0)); // locates first value
+        // Should Panic
+        //let r = bbox_binary_search(&coords, 1, 1);
+        //assert_eq!(r, Err(0));
 
-        let r = bbox_binary_search(&coords, 4, 1);
-        assert_eq!(r, Err(1)); // locates first element for given offset.
+        let buffer = flatbuffer_generator(4..8); // [4,5,6,7]
+        let rs = flatbuffers::get_root::<RelevScore>(&buffer);
+        let coords = rs.coords().unwrap();
 
-        let r = bbox_binary_search(&coords, 5, 0);
-        assert_eq!(r, Ok(1));
-
-        let r = bbox_binary_search(&coords, 6, 0);
-        assert_eq!(r, Ok(2));
-
-        let r = bbox_binary_search(&coords, 7, 0);
-        assert_eq!(r, Ok(3));
-
-        let r = bbox_binary_search(&coords, 7, 3);
-        assert_eq!(r, Ok(3));
-
-        let r = bbox_binary_search(&coords, 7, 4);
-        assert_eq!(r, Err(4)); // Offset is out of bounds
-
-        let r = bbox_binary_search(&coords, 8, 0);
-        assert_eq!(r, Err(4)); // Fails to find value, returns closes pos, the end
+        assert_eq!(bbox_binary_search(&coords, 0, 0), Err(0)); // locates first element
+        assert_eq!(bbox_binary_search(&coords, 4, 0), Ok(0)); // locates first value
+        assert_eq!(bbox_binary_search(&coords, 4, 1), Err(1)); // locates first element for given offset.
+        assert_eq!(bbox_binary_search(&coords, 5, 0), Ok(1));
+        assert_eq!(bbox_binary_search(&coords, 6, 0), Ok(2));
+        assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(3));
+        assert_eq!(bbox_binary_search(&coords, 7, 3), Ok(3));
+        assert_eq!(bbox_binary_search(&coords, 7, 4), Err(4)); // Offset is out of bounds
+        assert_eq!(bbox_binary_search(&coords, 8, 0), Err(4)); // Fails to find value, returns closes pos, the end
     }
 }
