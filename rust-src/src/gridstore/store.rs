@@ -251,8 +251,7 @@ impl GridStore {
                             Some(Box::new(coords_vec.into_iter()) as Box<Iterator<Item = Coord>>)
                         }
                         MatchOpts { bbox: Some(bbox), .. } => {
-                            let res = spatial::bbox_filter(coords_vec, bbox);
-                            match res {
+                            match spatial::bbox_filter(coords_vec, bbox) {
                                 Some(v) => Some(Box::new(v) as Box<Iterator<Item = Coord>>),
                                 None => None,
                             }

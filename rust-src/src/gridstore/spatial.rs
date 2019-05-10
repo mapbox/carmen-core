@@ -3,6 +3,11 @@ use flatbuffers;
 use morton::{deinterleave_morton, interleave_morton};
 use std::cmp::Ordering::{Equal, Greater, Less};
 
+/// Generate an Iterator for a bounding box over a Coord Vector
+///
+/// Returns [`Some(Iterator<>`] if the Coord Vector morton order range overlaps with the bouding box,
+/// [`None`] otherwise. May return an Iterator that yields no results if the morton order overlaps
+/// but the actual elements are not in the bounding box.
 pub fn bbox_filter<'a>(
     coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>,
     bbox: [u16; 4],
@@ -178,7 +183,7 @@ mod test {
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
         let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().collect::<Vec<Coord>>();
-        assert_eq!(result.len(), 3, "continuous result set that spans z-order jumps"); // why not 2?
+        assert_eq!(result.len(), 3, "continuous result set that spans z-order jumps");
 
         let sparse: Vec<u32> = vec![8];
         let buffer = flatbuffer_generator(sparse.into_iter());
