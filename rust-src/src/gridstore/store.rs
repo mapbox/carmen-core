@@ -197,7 +197,9 @@ impl GridStore {
         match_opts: &MatchOpts,
     ) -> Result<Box<dyn Iterator<Item = MatchEntry>>, Box<Error>> {
         match match_opts {
-            MatchOpts { bbox: None, .. } => Ok(Box::new(self.global_get_matching(match_key, &match_opts)?)),
+            MatchOpts { bbox: None, .. } => {
+                Ok(Box::new(self.global_get_matching(match_key, &match_opts)?))
+            }
             MatchOpts { bbox: Some(bbox), .. } => {
                 let bbox: [u16; 4] = bbox.clone();
                 let out = self.global_get_matching(match_key, &match_opts)?.filter(move |entry| {
@@ -263,22 +265,27 @@ impl GridStore {
                     // mask for the least significant four bits
                     let score = relev_score & 15;
 
-                    let coords_vec = get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS).unwrap();
+                    let coords_vec =
+                        get_vector::<Coord>(record_ref.1, &rs_obj._tab, RelevScore::VT_COORDS)
+                            .unwrap();
                     let coords = match match_opts {
-                        MatchOpts { bbox: None, .. } => Some(Box::new(coords_vec.into_iter()) as Box<Iterator<Item=Coord>>),
+                        MatchOpts { bbox: None, .. } => {
+                            Some(Box::new(coords_vec.into_iter()) as Box<Iterator<Item = Coord>>)
+                        }
                         MatchOpts { bbox: Some(bbox), .. } => {
                             let bbox: [u16; 4] = bbox.clone();
                             let res = spatial::bbox_filter(coords_vec, bbox);
                             match res {
-                                Some(v) => Some(Box::new(v) as Box<Iterator<Item=Coord>>),
+                                Some(v) => Some(Box::new(v) as Box<Iterator<Item = Coord>>),
                                 None => None,
                             }
-                        },
+                        }
                     };
 
                     if coords.is_some() {
-                        let slot =
-                            coords_for_rs.entry((OrderedFloat(relev), score)).or_insert_with(|| vec![]);
+                        let slot = coords_for_rs
+                            .entry((OrderedFloat(relev), score))
+                            .or_insert_with(|| vec![]);
                         slot.push(coords.unwrap());
                     }
                 }
