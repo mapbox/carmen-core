@@ -182,9 +182,6 @@ mod test {
 
     #[test]
     fn binary_search() {
-        // TODO
-        // - Determine if to return Result and how to handle out of bounds reads
-
         // Empty Coord list
         let empty: Vec<u32> = vec![];
         let buffer = flatbuffer_generator(empty.into_iter());
@@ -214,8 +211,8 @@ mod test {
         assert_eq!(bbox_binary_search(&coords, 6, 0), Ok(1));
         assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(0));
         assert_eq!(bbox_binary_search(&coords, 7, 3), Ok(3));
-        assert_eq!(bbox_binary_search(&coords, 7, 4), Err("Offset greater than Vector")); // Offset is out of bounds
-        assert_eq!(bbox_binary_search(&coords, 8, 0), Ok(0)); // Fails to find value, returns closest index
+        assert_eq!(bbox_binary_search(&coords, 7, 4), Err("Offset greater than Vector"));
+        assert_eq!(bbox_binary_search(&coords, 8, 0), Ok(0));
 
         // Sparse Coord list
         let sparse: Vec<u32> = vec![7, 4, 2, 1];
@@ -227,12 +224,12 @@ mod test {
         assert_eq!(bbox_binary_search(&coords, 1, 0), Ok(3));
         assert_eq!(bbox_binary_search(&coords, 1, 1), Ok(3));
         assert_eq!(bbox_binary_search(&coords, 2, 0), Ok(2));
-        //assert_eq!(bbox_binary_search(&coords, 3, 0), Ok(2));
+        assert_eq!(bbox_binary_search(&coords, 3, 0), Ok(2));
         assert_eq!(bbox_binary_search(&coords, 4, 0), Ok(1));
-        //assert_eq!(bbox_binary_search(&coords, 5, 0), Ok(3));
+        assert_eq!(bbox_binary_search(&coords, 5, 0), Ok(1));
         assert_eq!(bbox_binary_search(&coords, 7, 0), Ok(0));
         assert_eq!(bbox_binary_search(&coords, 7, 3), Ok(3));
-        assert_eq!(bbox_binary_search(&coords, 7, 4), Err("Offset greater than Vector")); // Offset is out of bounds
-        assert_eq!(bbox_binary_search(&coords, 8, 0), Ok(0)); // Fails to find value, returns closest index
+        assert_eq!(bbox_binary_search(&coords, 7, 4), Err("Offset greater than Vector"));
+        assert_eq!(bbox_binary_search(&coords, 8, 0), Ok(0));
     }
 }
