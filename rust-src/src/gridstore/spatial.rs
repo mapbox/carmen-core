@@ -14,7 +14,7 @@ pub fn bbox_filter<'a>(
 ) -> Option<impl Iterator<Item = Coord<'a>>> {
     let min = interleave_morton(bbox[0], bbox[1]);
     let max = interleave_morton(bbox[2], bbox[3]);
-    debug_assert!(min.cmp(&max) != Greater, "Invalid bounding box");
+    debug_assert!(min <= max, "Invalid bounding box");
 
     let len = coords.len();
     if len == 0 {
@@ -29,7 +29,7 @@ pub fn bbox_filter<'a>(
     if max < range_end {
         return None;
     }
-    debug_assert!(range_start.cmp(&range_end) != Less, "Expected descending sort");
+    debug_assert!(range_start >= range_end, "Expected descending sort");
 
     let start = match coord_binary_search(&coords, max, 0) {
         Ok(v) => v,
@@ -40,10 +40,10 @@ pub fn bbox_filter<'a>(
         Err(_) => return None,
     };
 
-    if end.cmp(&(len as u32)) == Equal {
+    if end == (len as u32) {
         end -= 1;
     }
-    debug_assert!(start.cmp(&end) != Greater, "Start is before end");
+    debug_assert!(start <= end, "Start is before end");
 
     Some((start..(end + 1)).filter_map(move |idx| {
         let grid = coords.get(idx as usize);
@@ -70,7 +70,7 @@ fn coord_binary_search<'a>(
 ) -> Result<u32, &'a str> {
     let len = coords.len() as u32;
 
-    if offset.cmp(&len) != Less {
+    if offset >= len {
         return Err("Offset greater than Vector");
     }
 
