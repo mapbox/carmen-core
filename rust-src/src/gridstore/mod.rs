@@ -278,4 +278,23 @@ fn matching_test() {
             MatchEntry { grid_entry: GridEntry { relev: 1.0, score: 7, x: 26, y: 1, id: 14, source_phrase_hash: 0 }, matches_language: false }
         ]
     );
+
+    // Search just below existing records where z-order curve overlaps with bbox, but we do not
+    // want records.
+    let search_key =
+        MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 3 }, lang_set: 1 };
+    let records: Vec<_> = reader
+        .get_matching(&search_key, &MatchOpts { bbox: Some([0, 2, 100, 2]), proximity: None })
+        .unwrap()
+        .collect();
+    assert_eq!(records.len(), 0, "no matching recods in bbox");
+
+    // Search where neigther z-order curve or actual x,y overlap with bbox.
+    let search_key =
+        MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 3 }, lang_set: 1 };
+    let records: Vec<_> = reader
+        .get_matching(&search_key, &MatchOpts { bbox: Some([100, 100, 100, 100]), proximity: None })
+        .unwrap()
+        .collect();
+    assert_eq!(records.len(), 0, "no matching recods in bbox");
 }
