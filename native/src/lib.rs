@@ -5,7 +5,7 @@ extern crate neon_serde;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber, JsInteger};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
@@ -53,13 +53,11 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
 
-            this.grab(|fuzzyphrasesetbuilder| {
+            let result = this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
                         match builder.insert(v.as_slice()) {
-                            Ok(()) => {
-                                Ok(JsUndefined::new().upcast())
-                            },
+                            Ok(tmp_id) => Ok(tmp_id),
                             Err(e) => {
                                 println!("{:?}", e);
                                 JsError::throw(Kind::TypeError, e.description())
@@ -70,7 +68,9 @@ declare_types! {
                         JsError::throw(Kind::TypeError, "unable to insert()")
                     }
                 }
-            })
+            });
+
+            Ok(JsNumber::new(call.scope, result? as f64).upcast())
         }
 
         method loadWordReplacements(call) {
@@ -82,8 +82,13 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        builder.load_word_replacements(word_replacements);
-                        Ok(JsUndefined::new().upcast())
+                        match builder.load_word_replacements(word_replacements) {
+                            Ok(()) => Ok(JsUndefined::new().upcast()),
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
+                        }
                     },
                     None => {
                         JsError::throw(Kind::TypeError, "unable to load_word_replacements()")

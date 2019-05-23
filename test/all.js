@@ -113,25 +113,25 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
 
     t.deepEquals(
         set.fuzzyMatch(['100', 'man', 'street'], 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
-        [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+        [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 1, 1 ] }],
         'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
     );
 
     t.deepEquals(
         set.fuzzyMatch(['100', 'man', 'stret'], 1, 2, fuzzy.ENDING_TYPE.nonPrefix),
-        [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
+        [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 1, 1 ] }],
         'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
     );
 
     t.deepEquals(
         set.fuzzyMatch(['100', 'man'], 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
-        [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }],
+        [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 0, 1 ] }],
         'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.anyPrefix)'
     );
 
     t.deepEquals(
         set.fuzzyMatch(['100', 'man', 'str'], 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
-        [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix }],
+        [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 1, 1 ] }],
         'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.anyPrefix)'
     );
 
@@ -147,10 +147,10 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
             2
         ),
         [
-            [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
-            [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix }],
-            [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }],
-            [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix }]
+            [{ edit_distance: 1, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 1, 1 ] }],
+            [{ edit_distance: 2, phrase: ['100', 'main', 'street'], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 1, 1 ] }],
+            [{ phrase: ['100', 'main'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 0, 1 ] }],
+            [{ phrase: ['100', 'main', 'str'], edit_distance: 1, ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 1, 1 ] }]
         ],
         'FuzzyPhraseSet fuzzyMatchMulti()'
     );
@@ -177,7 +177,8 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
                 edit_distance: 1,
                 ending_type: fuzzy.ENDING_TYPE.nonPrefix,
                 phrase: ['100', 'main', 'street'],
-                start_position: 0
+                start_position: 0,
+                phrase_id_range: [ 1, 1 ]
             }
         ]
     );
@@ -194,13 +195,15 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
                 edit_distance: 1,
                 ending_type: fuzzy.ENDING_TYPE.nonPrefix,
                 phrase: ['100', 'main', 'street'],
-                start_position: 0
+                start_position: 0,
+                phrase_id_range: [ 1, 1 ]
             },
             {
                 edit_distance: 0,
                 ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix,
                 phrase: ['200'],
-                start_position: 4
+                start_position: 4,
+                phrase_id_range: [ 2, 2 ]
             }
         ]
     );
@@ -221,6 +224,7 @@ tape('word replacements', (t) => {
     ];
 
     const builder = new fuzzy.FuzzyPhraseSetBuilder(tmpDir.name);
+    builder.loadWordReplacements(replacements);
 
     builder.insert(["100", "main", "street"]);
     builder.insert(["100", "main", "st"]);
@@ -228,7 +232,6 @@ tape('word replacements', (t) => {
     builder.insert(["100", "ft", "wayne", "rd"]);
     builder.insert(["100", "fortenberry", "ave"]);
 
-    builder.loadWordReplacements(replacements);
     builder.finish();
 
     const word_replacements_obj = JSON.parse(fs.readFileSync(tmpDir.name + '/metadata.json')).word_replacements;
@@ -240,55 +243,55 @@ tape('word replacements', (t) => {
     t.deepEquals(
         set.fuzzyMatch("100 main s".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "s"], ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main st".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.anyPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main str".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main str".split(' '), 0, 0, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 2, 2 ] },
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main stre".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main stree".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
     t.deepEquals(
         set.fuzzyMatch("100 main street".split(' '), 1, 1, fuzzy.ENDING_TYPE.anyPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.wordBoundaryPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
@@ -300,8 +303,8 @@ tape('word replacements', (t) => {
     t.deepEquals(
         set.fuzzyMatch("100 main st".split(' '), 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
         [
-            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix },
-            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix }
+            { edit_distance: 0, phrase: ["100", "main", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 2, 2 ] },
+            { edit_distance: 1, phrase: ["100", "maine", "st"], ending_type: fuzzy.ENDING_TYPE.nonPrefix, phrase_id_range: [ 3, 3 ] }
         ]
     );
 
@@ -320,7 +323,8 @@ tape('word replacements', (t) => {
                     edit_distance: 0,
                     phrase: ["100", "ft", "wayne", "rd"],
                     start_position: 0,
-                    ending_type: fuzzy.ENDING_TYPE.nonPrefix
+                    ending_type: fuzzy.ENDING_TYPE.nonPrefix,
+                    phrase_id_range: [1, 1]
                 }
             ]
         )
