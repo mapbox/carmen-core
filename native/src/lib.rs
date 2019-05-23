@@ -6,6 +6,7 @@ extern crate neon_serde;
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
 use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber, JsInteger};
+use neon::js::binary::JsArrayBuffer;
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
@@ -101,13 +102,11 @@ declare_types! {
             let scope = call.scope;
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
-            this.grab(|fuzzyphrasesetbuilder| {
+            let result = this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder.take() {
                     Some(builder) => {
                         match builder.finish() {
-                            Ok(_finish) => {
-                                Ok(JsUndefined::new().upcast())
-                            },
+                            Ok(id_map) => Ok(id_map),
                             Err(e) => {
                                 println!("{:?}", e);
                                 JsError::throw(Kind::TypeError, e.description())
@@ -118,7 +117,20 @@ declare_types! {
                         JsError::throw(Kind::TypeError, "unable to finish()")
                     }
                 }
-            })
+            });
+
+            let id_map = result?;
+            let mut buffer = JsArrayBuffer::new(scope, (id_map.len() * std::mem::size_of::<u32>()) as u32)?;
+            buffer.grab(|mut data| {
+                // ick ick ick -- there's no way to view this buffer as u32 in neon 0.1, so
+                // this nastiness is necessary until we upgrade
+                let slice = unsafe {
+                    let mut ptr = std::mem::transmute::<*mut u8, *mut u32>(data.as_mut_ptr());
+                    std::slice::from_raw_parts_mut(ptr, id_map.len())
+                };
+                slice.copy_from_slice(id_map.as_slice());
+            });
+            Ok(buffer.upcast())
         }
     }
 

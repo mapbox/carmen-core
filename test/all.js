@@ -38,7 +38,10 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
     builder.insert(['200', 'main', 'street']);
     builder.insert(['100', 'main', 'ave']);
     builder.insert(['300', 'mlk', 'blvd']);
-    builder.finish();
+
+    const id_map_buffer = builder.finish();
+    const id_map = new Uint32Array(id_map_buffer);
+    t.deepEquals(id_map, [1, 2, 0, 3], 'tmpid-to-id map contains elements in expected order');
 
     const set = new fuzzy.FuzzyPhraseSet(tmpDir.name);
     t.ok(set.contains(['100', 'main', 'street'], fuzzy.ENDING_TYPE.nonPrefix), 'FuzzyPhraseSet contains()');
