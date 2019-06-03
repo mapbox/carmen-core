@@ -303,6 +303,23 @@ declare_types! {
                 }
             }
         }
+
+        method getByPhraseId(call) {
+            let arg0 = call.arguments.require(call.scope, 0)?;
+            let phrase_id: u32 = neon_serde::from_value(call.scope, arg0)?;
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            let result = this.grab(|set| {
+                set.get_by_phrase_id(phrase_id)
+            });
+
+            match result {
+                Ok(Some(vec)) => Ok(neon_serde::to_value(call.scope, &vec)?.upcast()),
+                Ok(None) => Ok(JsUndefined::new().upcast()),
+                Err(e) => JsError::throw(Kind::TypeError, e.description())
+            }
+        }
     }
 }
 

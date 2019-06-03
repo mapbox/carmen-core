@@ -109,6 +109,9 @@ tape('FuzzyPhraseSetBuilder insertion and Set lookup', (t) => {
         'FuzzyPhraseSet does not containsPrefix()'
     );
 
+    t.deepEquals(set.getByPhraseId(3), ['300', 'mlk', 'blvd']);
+    t.equals(set.getByPhraseId(4), undefined);
+
     t.ok(
         set.fuzzyMatch(['100', 'man', 'street'], 1, 1, fuzzy.ENDING_TYPE.nonPrefix),
         'FuzzyPhraseSet fuzzyMatch(..., fuzzy.ENDING_TYPE.nonPrefix)'
