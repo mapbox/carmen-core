@@ -1,6 +1,6 @@
 {
   "name": "node-carmen-core",
-  "version": "0.1.0-prefix-1",
+  "version": "0.1.0-dev",
   "description": "node bindings for carmen-core",
   "main": "index.js",
   "engines": {
