@@ -47,6 +47,10 @@ fn copy_entries(source_entry: &BuilderEntry, destination_entry: &mut BuilderEntr
 fn get_fb_value(value: &mut BuilderEntry) -> Result<Vec<u8>, Error> {
     let mut fb_builder = flatbuffers::FlatBufferBuilder::new();
     let mut rses: Vec<_> = Vec::new();
+
+    let mut id_lists: HashMap<_, u32> = HashMap::new();
+    let mut id_idx = 0;
+
     for (rs, coord_group) in value.iter_mut().rev() {
         let mut coords: Vec<_> = Vec::new();
         for (coord, ids) in coord_group.iter_mut().rev() {
@@ -54,9 +58,14 @@ fn get_fb_value(value: &mut BuilderEntry) -> Result<Vec<u8>, Error> {
             ids.sort_by(|a, b| b.cmp(a));
             ids.dedup();
 
-            let fb_ids = fb_builder.create_vector(&ids);
-            let fb_coord =
-                Coord::create(&mut fb_builder, &CoordArgs { coord: *coord, ids: Some(fb_ids) });
+            let idx = id_lists.entry(ids).or_insert_with(|| {
+                let new_id = id_idx;
+                id_idx += 1;
+                new_id
+            });
+
+            //let fb_ids = fb_builder.create_vector(&ids);
+            let fb_coord = Coord::new(*coord, *idx);
             coords.push(fb_coord);
         }
         let fb_coords = fb_builder.create_vector(&coords);
@@ -67,8 +76,17 @@ fn get_fb_value(value: &mut BuilderEntry) -> Result<Vec<u8>, Error> {
         rses.push(fb_rs);
     }
     let fb_rses = fb_builder.create_vector(&rses);
+
+    let mut id_lists: Vec<_> = id_lists.into_iter().collect();
+    id_lists.sort_by_key(|e| e.1);
+    let fb_id_lists: Vec<_> = id_lists.into_iter().map(|(list, _)| {
+        let list = fb_builder.create_vector(list);
+        IdList::create(&mut fb_builder, &IdListArgs { ids: Some(list) })
+    }).collect();
+    let fb_id_lists = fb_builder.create_vector(&fb_id_lists);
+
     let record =
-        PhraseRecord::create(&mut fb_builder, &PhraseRecordArgs { relev_scores: Some(fb_rses) });
+        PhraseRecord::create(&mut fb_builder, &PhraseRecordArgs { relev_scores: Some(fb_rses), id_lists: Some(fb_id_lists) });
     fb_builder.finish(record, None);
     Ok(fb_builder.finished_data().to_vec())
 }

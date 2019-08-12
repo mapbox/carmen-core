@@ -1,6 +1,6 @@
-table Coord {
+struct Coord {
     coord: uint32;
-    ids: [uint32];
+    id_list: uint32;
 }
 
 table RelevScore {
@@ -8,8 +8,13 @@ table RelevScore {
     coords: [Coord];
 }
 
+table IdList {
+    ids: [uint32];
+}
+
 table PhraseRecord {
     relev_scores: [RelevScore];
+    id_lists: [IdList];
 }
 
 root_type PhraseRecord;

@@ -1,5 +1,4 @@
 use crate::gridstore::gridstore_generated::*;
-use flatbuffers;
 use itertools::Itertools;
 use morton::{deinterleave_morton, interleave_morton};
 use std::cmp::Ordering::{Equal, Greater, Less};
@@ -9,7 +8,7 @@ use std::cmp::Ordering::{Equal, Greater, Less};
 /// Returns (Some(min,max)) if the Coord Vector morton order range overlaps with the bounding box,
 /// [`None`] if the Coord Vector morton order range does not overlaps with the bounding box
 pub fn bbox_range<'a>(
-    coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>,
+    coords: &'a [Coord],
     bbox: [u16; 4],
 ) -> Option<(u32, u32)> {
     let min = interleave_morton(bbox[0], bbox[1]);
@@ -21,11 +20,11 @@ pub fn bbox_range<'a>(
         return None;
     }
 
-    let range_start = coords.get(0).coord();
+    let range_start = coords[0].coord();
     if min > range_start {
         return None;
     }
-    let range_end = coords.get(len - 1).coord();
+    let range_end = coords[len - 1].coord();
     if max < range_end {
         return None;
     }
@@ -53,9 +52,9 @@ pub fn bbox_range<'a>(
 /// [`None`] otherwise. May return an Iterator that yields no results if the morton order overlaps
 /// but the actual elements are not in the bounding box.
 pub fn bbox_filter<'a>(
-    coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>,
+    coords: &'a [Coord],
     bbox: [u16; 4],
-) -> Option<impl Iterator<Item = Coord<'a>>> {
+) -> Option<impl Iterator<Item = &'a Coord>> {
     let len = coords.len();
     if len == 0 {
         return None;
@@ -63,10 +62,10 @@ pub fn bbox_filter<'a>(
 
     let range = bbox_range(coords, bbox)?;
     Some((range.0..=range.1).filter_map(move |idx| {
-        let grid = coords.get(idx as usize);
+        let grid = coords[idx as usize];
         let (x, y) = deinterleave_morton(grid.coord()); // TODO capture this so we don't have to do it again.
         if x >= bbox[0] && x <= bbox[2] && y >= bbox[1] && y <= bbox[3] {
-            return Some(grid);
+            return Some(&coords[idx as usize]);
         }
         None
     }))
@@ -77,9 +76,9 @@ pub fn bbox_filter<'a>(
 /// Returns [`Some(Iterator<>`] which is a Coord Vector morton order range ordered by the z-order distance from the proximity point
 /// [`None`] if the Coord Vector is empty
 pub fn proximity<'a>(
-    coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>,
+    coords: &'a [Coord],
     proximity: [u16; 2],
-) -> Option<impl Iterator<Item = Coord<'a>>> {
+) -> Option<impl Iterator<Item = &'a Coord>> {
     let prox_pt = interleave_morton(proximity[0], proximity[1]) as i64;
     let len = coords.len() as u32;
     if len == 0 {
@@ -91,9 +90,9 @@ pub fn proximity<'a>(
         Err(_) => return None,
     };
 
-    let getter = move |i| coords.get(i as usize);
-    let head = Box::new((0..prox_mid).rev().map(getter)) as Box<Iterator<Item = Coord>>;
-    let tail = Box::new((prox_mid..len).map(getter)) as Box<Iterator<Item = Coord>>;
+    let getter = move |i| &coords[i as usize];
+    let head = Box::new((0..prox_mid).rev().map(getter)) as Box<Iterator<Item = &'a Coord>>;
+    let tail = Box::new((prox_mid..len).map(getter)) as Box<Iterator<Item = &'a Coord>>;
     let coord_sets = vec![head, tail].into_iter().kmerge_by(move |a, b| {
         let d1 = (a.coord() as i64 - prox_pt) as i64;
         let d2 = (b.coord() as i64 - prox_pt) as i64;
@@ -108,10 +107,10 @@ pub fn proximity<'a>(
 /// Returns [`Some(Iterator<>`] which is a Coord Vector morton order range that overlaps with a bounding box and is ordered by the z-order distance from the proximity point
 /// [`None`] if the bounding box does not overlap with the morton order range
 pub fn bbox_proximity_filter<'a>(
-    coords: flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Coord<'a>>>,
+    coords: &'a [Coord],
     bbox: [u16; 4],
     proximity: [u16; 2],
-) -> Option<impl Iterator<Item = Coord<'a>>> {
+) -> Option<impl Iterator<Item = &'a Coord>> {
     let range = bbox_range(coords, bbox)?;
     let prox_pt = interleave_morton(proximity[0], proximity[1]) as i64;
     if coords.len() == 0 {
@@ -124,19 +123,19 @@ pub fn bbox_proximity_filter<'a>(
     };
 
     let filtered_get = move |idx| {
-        let grid = coords.get(idx as usize);
+        let grid = coords[idx as usize];
         let (x, y) = deinterleave_morton(grid.coord()); // TODO capture this so we don't have to do it again.
         if x >= bbox[0] && x <= bbox[2] && y >= bbox[1] && y <= bbox[3] {
-            return Some(grid);
+            return Some(&coords[idx as usize]);
         } else {
             return None;
         };
     };
 
     let head =
-        Box::new((range.0..prox_mid).rev().filter_map(filtered_get)) as Box<Iterator<Item = Coord>>;
+        Box::new((range.0..prox_mid).rev().filter_map(filtered_get)) as Box<Iterator<Item = &'a Coord>>;
     let tail =
-        Box::new((prox_mid..=range.1).filter_map(filtered_get)) as Box<Iterator<Item = Coord>>;
+        Box::new((prox_mid..=range.1).filter_map(filtered_get)) as Box<Iterator<Item = &'a Coord>>;
     let coord_sets = vec![head, tail].into_iter().kmerge_by(move |a, b| {
         let d1 = (a.coord() as i64 - prox_pt) as i64;
         let d2 = (b.coord() as i64 - prox_pt) as i64;
@@ -154,7 +153,7 @@ pub fn bbox_proximity_filter<'a>(
 /// [`Result::Ok'] is returned containing either 0 or the length of the Vector. A ['Results:Err'] is
 /// returned if the offset is greater to the vector length.
 fn coord_binary_search<'a>(
-    coords: &flatbuffers::Vector<flatbuffers::ForwardsUOffset<Coord>>,
+    coords: &'a [Coord],
     val: u32,
     offset: u32,
 ) -> Result<u32, &'a str> {
@@ -174,7 +173,7 @@ fn coord_binary_search<'a>(
     while size > 1 {
         let half = size / 2;
         let mid = base + half;
-        let v = coords.get(mid as usize).coord();
+        let v = coords[mid as usize].coord();
         let cmp = v.cmp(&val);
         base = if cmp == Less { base } else { mid };
         size -= half;
@@ -182,7 +181,7 @@ fn coord_binary_search<'a>(
     if base.cmp(&(len - 1)) == Equal {
         return Ok(base);
     }
-    let cmp = coords.get(base as usize).coord().cmp(&val);
+    let cmp = coords[base as usize].coord().cmp(&val);
     if cmp == Equal {
         Ok(base)
     } else {
@@ -195,11 +194,8 @@ fn flatbuffer_generator<T: Iterator<Item = u32>>(val: T) -> Vec<u8> {
     let mut fb_builder = flatbuffers::FlatBufferBuilder::new_with_capacity(256);
     let mut coords: Vec<_> = Vec::new();
 
-    let ids: Vec<u32> = vec![0];
     for i in val {
-        let fb_ids = fb_builder.create_vector(&ids);
-        let fb_coord =
-            Coord::create(&mut fb_builder, &CoordArgs { coord: i as u32, ids: Some(fb_ids) });
+        let fb_coord = Coord::new(i as u32, 0);
         coords.push(fb_coord);
     }
     let fb_coords = fb_builder.create_vector(&coords);
@@ -228,25 +224,25 @@ mod test {
         let buffer = flatbuffer_generator((0..4).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [0, 0, 1, 1]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [0, 0, 1, 1]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 4);
 
         let buffer = flatbuffer_generator((2..4).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [0, 0, 1, 1]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [0, 0, 1, 1]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 2, "starts before bbox and ends between the result set");
 
         let buffer = flatbuffer_generator((2..4).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [1, 1, 3, 1]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [1, 1, 3, 1]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 1, "starts in the bbox and ends after the result set");
 
         let buffer = flatbuffer_generator((1..4).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [0, 1, 1, 1]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [0, 1, 1, 1]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 2, "starts in the bbox and ends in the bbox");
 
         let buffer = flatbuffer_generator((5..7).rev());
@@ -267,20 +263,20 @@ mod test {
         let buffer = flatbuffer_generator(sparse.into_iter());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 2, "sparse result set that spans z-order jumps");
 
         let buffer = flatbuffer_generator((7..24).rev());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 3, "continuous result set that spans z-order jumps");
 
         let sparse: Vec<u32> = vec![8];
         let buffer = flatbuffer_generator(sparse.into_iter());
         let rs = flatbuffers::get_root::<RelevScore>(&buffer);
         let coords = rs.coords().unwrap();
-        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().collect::<Vec<Coord>>();
+        let result = bbox_filter(coords, [3, 1, 4, 2]).unwrap().cloned().collect::<Vec<Coord>>();
         assert_eq!(result.len(), 0, "result is on the z-order curve but not in the bbox");
     }
 
