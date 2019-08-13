@@ -4,8 +4,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use std::mem;
 use std::cmp::Ordering;
+use std::mem;
 
 extern crate flatbuffers;
 use self::flatbuffers::EndianScalar;
@@ -14,23 +14,23 @@ use self::flatbuffers::EndianScalar;
 #[repr(C, align(4))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coord {
-  coord_: u32,
-  id_list_: u32,
+    coord_: u32,
+    id_list_: u32,
 } // pub struct Coord
 impl flatbuffers::SafeSliceAccess for Coord {}
 impl<'a> flatbuffers::Follow<'a> for Coord {
-  type Inner = &'a Coord;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    <&'a Coord>::follow(buf, loc)
-  }
+    type Inner = &'a Coord;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        <&'a Coord>::follow(buf, loc)
+    }
 }
 impl<'a> flatbuffers::Follow<'a> for &'a Coord {
-  type Inner = &'a Coord;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    flatbuffers::follow_cast_ref::<Coord>(buf, loc)
-  }
+    type Inner = &'a Coord;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        flatbuffers::follow_cast_ref::<Coord>(buf, loc)
+    }
 }
 impl<'b> flatbuffers::Push for Coord {
     type Output = Coord;
@@ -54,293 +54,308 @@ impl<'b> flatbuffers::Push for &'b Coord {
     }
 }
 
-
 impl Coord {
-  pub fn new<'a>(_coord: u32, _id_list: u32) -> Self {
-    Coord {
-      coord_: _coord.to_little_endian(),
-      id_list_: _id_list.to_little_endian(),
-
+    pub fn new<'a>(_coord: u32, _id_list: u32) -> Self {
+        Coord { coord_: _coord.to_little_endian(), id_list_: _id_list.to_little_endian() }
     }
-  }
-  pub fn coord<'a>(&'a self) -> u32 {
-    self.coord_.from_little_endian()
-  }
-  pub fn id_list<'a>(&'a self) -> u32 {
-    self.id_list_.from_little_endian()
-  }
+    pub fn coord<'a>(&'a self) -> u32 {
+        self.coord_.from_little_endian()
+    }
+    pub fn id_list<'a>(&'a self) -> u32 {
+        self.id_list_.from_little_endian()
+    }
 }
 
 pub enum RelevScoreOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
 pub struct RelevScore<'a> {
-  pub _tab: flatbuffers::Table<'a>,
+    pub _tab: flatbuffers::Table<'a>,
 }
 
 impl<'a> flatbuffers::Follow<'a> for RelevScore<'a> {
     type Inner = RelevScore<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
+        Self { _tab: flatbuffers::Table { buf: buf, loc: loc } }
     }
 }
 
 impl<'a> RelevScore<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        RelevScore {
-            _tab: table,
-        }
+        RelevScore { _tab: table }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args RelevScoreArgs<'args>) -> flatbuffers::WIPOffset<RelevScore<'bldr>> {
-      let mut builder = RelevScoreBuilder::new(_fbb);
-      if let Some(x) = args.coords { builder.add_coords(x); }
-      builder.add_relev_score(args.relev_score);
-      builder.finish()
+        args: &'args RelevScoreArgs<'args>,
+    ) -> flatbuffers::WIPOffset<RelevScore<'bldr>> {
+        let mut builder = RelevScoreBuilder::new(_fbb);
+        if let Some(x) = args.coords {
+            builder.add_coords(x);
+        }
+        builder.add_relev_score(args.relev_score);
+        builder.finish()
     }
 
     pub const VT_RELEV_SCORE: flatbuffers::VOffsetT = 4;
     pub const VT_COORDS: flatbuffers::VOffsetT = 6;
 
-  #[inline]
-  pub fn relev_score(&self) -> u8 {
-    self._tab.get::<u8>(RelevScore::VT_RELEV_SCORE, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn coords(&self) -> Option<&'a [Coord]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Coord>>>(RelevScore::VT_COORDS, None).map(|v| v.safe_slice() )
-  }
+    #[inline]
+    pub fn relev_score(&self) -> u8 {
+        self._tab.get::<u8>(RelevScore::VT_RELEV_SCORE, Some(0)).unwrap()
+    }
+    #[inline]
+    pub fn coords(&self) -> Option<&'a [Coord]> {
+        self._tab
+            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Coord>>>(
+                RelevScore::VT_COORDS,
+                None,
+            )
+            .map(|v| v.safe_slice())
+    }
 }
 
 pub struct RelevScoreArgs<'a> {
     pub relev_score: u8,
-    pub coords: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Coord>>>,
+    pub coords: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, Coord>>>,
 }
 impl<'a> Default for RelevScoreArgs<'a> {
     #[inline]
     fn default() -> Self {
-        RelevScoreArgs {
-            relev_score: 0,
-            coords: None,
-        }
+        RelevScoreArgs { relev_score: 0, coords: None }
     }
 }
 pub struct RelevScoreBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> RelevScoreBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_relev_score(&mut self, relev_score: u8) {
-    self.fbb_.push_slot::<u8>(RelevScore::VT_RELEV_SCORE, relev_score, 0);
-  }
-  #[inline]
-  pub fn add_coords(&mut self, coords: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Coord>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RelevScore::VT_COORDS, coords);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RelevScoreBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    RelevScoreBuilder {
-      fbb_: _fbb,
-      start_: start,
+    #[inline]
+    pub fn add_relev_score(&mut self, relev_score: u8) {
+        self.fbb_.push_slot::<u8>(RelevScore::VT_RELEV_SCORE, relev_score, 0);
     }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<RelevScore<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
+    #[inline]
+    pub fn add_coords(&mut self, coords: flatbuffers::WIPOffset<flatbuffers::Vector<'b, Coord>>) {
+        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RelevScore::VT_COORDS, coords);
+    }
+    #[inline]
+    pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RelevScoreBuilder<'a, 'b> {
+        let start = _fbb.start_table();
+        RelevScoreBuilder { fbb_: _fbb, start_: start }
+    }
+    #[inline]
+    pub fn finish(self) -> flatbuffers::WIPOffset<RelevScore<'a>> {
+        let o = self.fbb_.end_table(self.start_);
+        flatbuffers::WIPOffset::new(o.value())
+    }
 }
 
 pub enum IdListOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
 pub struct IdList<'a> {
-  pub _tab: flatbuffers::Table<'a>,
+    pub _tab: flatbuffers::Table<'a>,
 }
 
 impl<'a> flatbuffers::Follow<'a> for IdList<'a> {
     type Inner = IdList<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
+        Self { _tab: flatbuffers::Table { buf: buf, loc: loc } }
     }
 }
 
 impl<'a> IdList<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        IdList {
-            _tab: table,
-        }
+        IdList { _tab: table }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IdListArgs<'args>) -> flatbuffers::WIPOffset<IdList<'bldr>> {
-      let mut builder = IdListBuilder::new(_fbb);
-      if let Some(x) = args.ids { builder.add_ids(x); }
-      builder.finish()
+        args: &'args IdListArgs<'args>,
+    ) -> flatbuffers::WIPOffset<IdList<'bldr>> {
+        let mut builder = IdListBuilder::new(_fbb);
+        if let Some(x) = args.ids {
+            builder.add_ids(x);
+        }
+        builder.finish()
     }
 
     pub const VT_IDS: flatbuffers::VOffsetT = 4;
 
-  #[inline]
-  pub fn ids(&self) -> Option<flatbuffers::Vector<'a, u32>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u32>>>(IdList::VT_IDS, None)
-  }
+    #[inline]
+    pub fn ids(&self) -> Option<flatbuffers::Vector<'a, u32>> {
+        self._tab
+            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u32>>>(IdList::VT_IDS, None)
+    }
 }
 
 pub struct IdListArgs<'a> {
-    pub ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u32>>>,
+    pub ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u32>>>,
 }
 impl<'a> Default for IdListArgs<'a> {
     #[inline]
     fn default() -> Self {
-        IdListArgs {
-            ids: None,
-        }
+        IdListArgs { ids: None }
     }
 }
 pub struct IdListBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> IdListBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_ids(&mut self, ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u32>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IdList::VT_IDS, ids);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IdListBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    IdListBuilder {
-      fbb_: _fbb,
-      start_: start,
+    #[inline]
+    pub fn add_ids(&mut self, ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u32>>) {
+        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IdList::VT_IDS, ids);
     }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<IdList<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
+    #[inline]
+    pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IdListBuilder<'a, 'b> {
+        let start = _fbb.start_table();
+        IdListBuilder { fbb_: _fbb, start_: start }
+    }
+    #[inline]
+    pub fn finish(self) -> flatbuffers::WIPOffset<IdList<'a>> {
+        let o = self.fbb_.end_table(self.start_);
+        flatbuffers::WIPOffset::new(o.value())
+    }
 }
 
 pub enum PhraseRecordOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
 pub struct PhraseRecord<'a> {
-  pub _tab: flatbuffers::Table<'a>,
+    pub _tab: flatbuffers::Table<'a>,
 }
 
 impl<'a> flatbuffers::Follow<'a> for PhraseRecord<'a> {
     type Inner = PhraseRecord<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
+        Self { _tab: flatbuffers::Table { buf: buf, loc: loc } }
     }
 }
 
 impl<'a> PhraseRecord<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        PhraseRecord {
-            _tab: table,
-        }
+        PhraseRecord { _tab: table }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args PhraseRecordArgs<'args>) -> flatbuffers::WIPOffset<PhraseRecord<'bldr>> {
-      let mut builder = PhraseRecordBuilder::new(_fbb);
-      if let Some(x) = args.id_lists { builder.add_id_lists(x); }
-      if let Some(x) = args.relev_scores { builder.add_relev_scores(x); }
-      builder.finish()
+        args: &'args PhraseRecordArgs<'args>,
+    ) -> flatbuffers::WIPOffset<PhraseRecord<'bldr>> {
+        let mut builder = PhraseRecordBuilder::new(_fbb);
+        if let Some(x) = args.id_lists {
+            builder.add_id_lists(x);
+        }
+        if let Some(x) = args.relev_scores {
+            builder.add_relev_scores(x);
+        }
+        builder.finish()
     }
 
     pub const VT_RELEV_SCORES: flatbuffers::VOffsetT = 4;
     pub const VT_ID_LISTS: flatbuffers::VOffsetT = 6;
 
-  #[inline]
-  pub fn relev_scores(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<RelevScore<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<RelevScore<'a>>>>>(PhraseRecord::VT_RELEV_SCORES, None)
-  }
-  #[inline]
-  pub fn id_lists(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<IdList<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<IdList<'a>>>>>(PhraseRecord::VT_ID_LISTS, None)
-  }
+    #[inline]
+    pub fn relev_scores(
+        &self,
+    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<RelevScore<'a>>>> {
+        self._tab.get::<flatbuffers::ForwardsUOffset<
+            flatbuffers::Vector<flatbuffers::ForwardsUOffset<RelevScore<'a>>>,
+        >>(PhraseRecord::VT_RELEV_SCORES, None)
+    }
+    #[inline]
+    pub fn id_lists(
+        &self,
+    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<IdList<'a>>>> {
+        self._tab.get::<flatbuffers::ForwardsUOffset<
+            flatbuffers::Vector<flatbuffers::ForwardsUOffset<IdList<'a>>>,
+        >>(PhraseRecord::VT_ID_LISTS, None)
+    }
 }
 
 pub struct PhraseRecordArgs<'a> {
-    pub relev_scores: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<RelevScore<'a >>>>>,
-    pub id_lists: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<IdList<'a >>>>>,
+    pub relev_scores: Option<
+        flatbuffers::WIPOffset<
+            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<RelevScore<'a>>>,
+        >,
+    >,
+    pub id_lists: Option<
+        flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<IdList<'a>>>>,
+    >,
 }
 impl<'a> Default for PhraseRecordArgs<'a> {
     #[inline]
     fn default() -> Self {
-        PhraseRecordArgs {
-            relev_scores: None,
-            id_lists: None,
-        }
+        PhraseRecordArgs { relev_scores: None, id_lists: None }
     }
 }
 pub struct PhraseRecordBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> PhraseRecordBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_relev_scores(&mut self, relev_scores: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<RelevScore<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PhraseRecord::VT_RELEV_SCORES, relev_scores);
-  }
-  #[inline]
-  pub fn add_id_lists(&mut self, id_lists: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<IdList<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PhraseRecord::VT_ID_LISTS, id_lists);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PhraseRecordBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    PhraseRecordBuilder {
-      fbb_: _fbb,
-      start_: start,
+    #[inline]
+    pub fn add_relev_scores(
+        &mut self,
+        relev_scores: flatbuffers::WIPOffset<
+            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<RelevScore<'b>>>,
+        >,
+    ) {
+        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+            PhraseRecord::VT_RELEV_SCORES,
+            relev_scores,
+        );
     }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<PhraseRecord<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
+    #[inline]
+    pub fn add_id_lists(
+        &mut self,
+        id_lists: flatbuffers::WIPOffset<
+            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<IdList<'b>>>,
+        >,
+    ) {
+        self.fbb_
+            .push_slot_always::<flatbuffers::WIPOffset<_>>(PhraseRecord::VT_ID_LISTS, id_lists);
+    }
+    #[inline]
+    pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PhraseRecordBuilder<'a, 'b> {
+        let start = _fbb.start_table();
+        PhraseRecordBuilder { fbb_: _fbb, start_: start }
+    }
+    #[inline]
+    pub fn finish(self) -> flatbuffers::WIPOffset<PhraseRecord<'a>> {
+        let o = self.fbb_.end_table(self.start_);
+        flatbuffers::WIPOffset::new(o.value())
+    }
 }
 
 #[inline]
 pub fn get_root_as_phrase_record<'a>(buf: &'a [u8]) -> PhraseRecord<'a> {
-  flatbuffers::get_root::<PhraseRecord<'a>>(buf)
+    flatbuffers::get_root::<PhraseRecord<'a>>(buf)
 }
 
 #[inline]
 pub fn get_size_prefixed_root_as_phrase_record<'a>(buf: &'a [u8]) -> PhraseRecord<'a> {
-  flatbuffers::get_size_prefixed_root::<PhraseRecord<'a>>(buf)
+    flatbuffers::get_size_prefixed_root::<PhraseRecord<'a>>(buf)
 }
 
 #[inline]
 pub fn finish_phrase_record_buffer<'a, 'b>(
     fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-    root: flatbuffers::WIPOffset<PhraseRecord<'a>>) {
-  fbb.finish(root, None);
+    root: flatbuffers::WIPOffset<PhraseRecord<'a>>,
+) {
+    fbb.finish(root, None);
 }
 
 #[inline]
-pub fn finish_size_prefixed_phrase_record_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<PhraseRecord<'a>>) {
-  fbb.finish_size_prefixed(root, None);
+pub fn finish_size_prefixed_phrase_record_buffer<'a, 'b>(
+    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    root: flatbuffers::WIPOffset<PhraseRecord<'a>>,
+) {
+    fbb.finish_size_prefixed(root, None);
 }

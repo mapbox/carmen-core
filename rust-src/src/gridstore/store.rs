@@ -145,16 +145,11 @@ fn decode_value<T: AsRef<[u8]>>(value: T) -> impl Iterator<Item = GridEntry> {
         (value, static_ref)
     };
     let record = get_root_as_phrase_record(record_ref.1);
-    let rs_vec = get_vector::<RelevScore>(
-        record_ref.1,
-        &record._tab,
-        PhraseRecord::VT_RELEV_SCORES,
-    ).unwrap();
-    let id_vec = get_vector::<IdList>(
-        record_ref.1,
-        &record._tab,
-        PhraseRecord::VT_ID_LISTS,
-    ).unwrap();
+    let rs_vec =
+        get_vector::<RelevScore>(record_ref.1, &record._tab, PhraseRecord::VT_RELEV_SCORES)
+            .unwrap();
+    let id_vec =
+        get_vector::<IdList>(record_ref.1, &record._tab, PhraseRecord::VT_ID_LISTS).unwrap();
 
     let iter = rs_vec.iter().flat_map(move |rs_obj| {
         let relev_score = rs_obj.relev_score();

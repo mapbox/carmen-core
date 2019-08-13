@@ -7,10 +7,7 @@ use std::cmp::Ordering::{Equal, Greater, Less};
 ///
 /// Returns (Some(min,max)) if the Coord Vector morton order range overlaps with the bounding box,
 /// [`None`] if the Coord Vector morton order range does not overlaps with the bounding box
-pub fn bbox_range<'a>(
-    coords: &'a [Coord],
-    bbox: [u16; 4],
-) -> Option<(u32, u32)> {
+pub fn bbox_range<'a>(coords: &'a [Coord], bbox: [u16; 4]) -> Option<(u32, u32)> {
     let min = interleave_morton(bbox[0], bbox[1]);
     let max = interleave_morton(bbox[2], bbox[3]);
     debug_assert!(min <= max, "Invalid bounding box");
@@ -132,8 +129,8 @@ pub fn bbox_proximity_filter<'a>(
         };
     };
 
-    let head =
-        Box::new((range.0..prox_mid).rev().filter_map(filtered_get)) as Box<Iterator<Item = &'a Coord>>;
+    let head = Box::new((range.0..prox_mid).rev().filter_map(filtered_get))
+        as Box<Iterator<Item = &'a Coord>>;
     let tail =
         Box::new((prox_mid..=range.1).filter_map(filtered_get)) as Box<Iterator<Item = &'a Coord>>;
     let coord_sets = vec![head, tail].into_iter().kmerge_by(move |a, b| {
@@ -152,11 +149,7 @@ pub fn bbox_proximity_filter<'a>(
 /// index of the matching element. If the value is less than the first element and greater than the last,
 /// [`Result::Ok'] is returned containing either 0 or the length of the Vector. A ['Results:Err'] is
 /// returned if the offset is greater to the vector length.
-fn coord_binary_search<'a>(
-    coords: &'a [Coord],
-    val: u32,
-    offset: u32,
-) -> Result<u32, &'a str> {
+fn coord_binary_search<'a>(coords: &'a [Coord], val: u32, offset: u32) -> Result<u32, &'a str> {
     let len = coords.len() as u32;
 
     if offset >= len {

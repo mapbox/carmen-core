@@ -79,14 +79,19 @@ fn get_fb_value(value: &mut BuilderEntry) -> Result<Vec<u8>, Error> {
 
     let mut id_lists: Vec<_> = id_lists.into_iter().collect();
     id_lists.sort_by_key(|e| e.1);
-    let fb_id_lists: Vec<_> = id_lists.into_iter().map(|(list, _)| {
-        let list = fb_builder.create_vector(list);
-        IdList::create(&mut fb_builder, &IdListArgs { ids: Some(list) })
-    }).collect();
+    let fb_id_lists: Vec<_> = id_lists
+        .into_iter()
+        .map(|(list, _)| {
+            let list = fb_builder.create_vector(list);
+            IdList::create(&mut fb_builder, &IdListArgs { ids: Some(list) })
+        })
+        .collect();
     let fb_id_lists = fb_builder.create_vector(&fb_id_lists);
 
-    let record =
-        PhraseRecord::create(&mut fb_builder, &PhraseRecordArgs { relev_scores: Some(fb_rses), id_lists: Some(fb_id_lists) });
+    let record = PhraseRecord::create(
+        &mut fb_builder,
+        &PhraseRecordArgs { relev_scores: Some(fb_rses), id_lists: Some(fb_id_lists) },
+    );
     fb_builder.finish(record, None);
     Ok(fb_builder.finished_data().to_vec())
 }
