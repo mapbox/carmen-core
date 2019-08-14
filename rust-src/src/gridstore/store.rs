@@ -152,6 +152,9 @@ fn decode_value<T: AsRef<[u8]>>(value: T) -> impl Iterator<Item = GridEntry> {
         get_vector::<IdList>(record_ref.1, &record._tab, PhraseRecord::VT_ID_LISTS).unwrap();
 
     let iter = rs_vec.iter().flat_map(move |rs_obj| {
+        // grab a reference to the outer object to make sure it doesn't get freed
+        let _ref = &record_ref;
+
         let relev_score = rs_obj.relev_score();
         let relev = relev_int_to_float(relev_score >> 4);
         // mask for the least significant four bits
