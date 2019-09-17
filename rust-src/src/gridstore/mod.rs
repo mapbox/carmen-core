@@ -436,13 +436,15 @@ mod tests {
         let mut builder = GridStoreBuilder::new(directory.path()).unwrap();
 
         let alphabet = "abcdefghijklmnopqrstuvwxyz";
-        let phrases: Vec<String> = alphabet.bytes().flat_map(move |l1| {
-            alphabet.bytes().flat_map(move |l2| {
-                alphabet.bytes().map(move |l3| {
-                    String::from_utf8(vec![l1, l2, l3]).unwrap()
+        let phrases: Vec<String> = alphabet
+            .bytes()
+            .flat_map(move |l1| {
+                alphabet.bytes().flat_map(move |l2| {
+                    alphabet.bytes().map(move |l3| String::from_utf8(vec![l1, l2, l3]).unwrap())
                 })
             })
-        }).take(5000).collect();
+            .take(5000)
+            .collect();
 
         // insert phrases
         for i in 0..=(phrases.len() as u32) {
@@ -478,13 +480,16 @@ mod tests {
                 .iter()
                 .enumerate()
                 .find(|(_, phrase)| phrase.starts_with(prefix))
-                .unwrap().0;
+                .unwrap()
+                .0;
             let end = phrases
                 .iter()
                 .enumerate()
                 .rev()
                 .find(|(_, phrase)| phrase.starts_with(prefix))
-                .unwrap().0 + 1;
+                .unwrap()
+                .0
+                + 1;
             (start as u32, end as u32)
         };
 
@@ -492,8 +497,10 @@ mod tests {
         let starts_with_bc = find_range("bc");
 
         // query that we expect to use the pre-cached ranges
-        let search_key =
-            MatchKey { match_phrase: MatchPhrase::Range { start: starts_with_b.0, end: starts_with_b.1 }, lang_set: 1 };
+        let search_key = MatchKey {
+            match_phrase: MatchPhrase::Range { start: starts_with_b.0, end: starts_with_b.1 },
+            lang_set: 1,
+        };
         let mut records: Vec<_> =
             reader.get_matching(&search_key, &MatchOpts::default()).unwrap().collect();
         records.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -516,8 +523,10 @@ mod tests {
         assert_eq!(records, expected);
 
         // query that we expect not to use the precached ranges
-        let search_key =
-            MatchKey { match_phrase: MatchPhrase::Range { start: starts_with_bc.0, end: starts_with_bc.1 }, lang_set: 1 };
+        let search_key = MatchKey {
+            match_phrase: MatchPhrase::Range { start: starts_with_bc.0, end: starts_with_bc.1 },
+            lang_set: 1,
+        };
         let mut records: Vec<_> =
             reader.get_matching(&search_key, &MatchOpts::default()).unwrap().collect();
         records.sort_by(|a, b| a.partial_cmp(b).unwrap());

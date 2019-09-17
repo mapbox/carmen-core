@@ -6,7 +6,7 @@ use integer_encoding::VarInt;
 #[derive(Copy, Clone)]
 pub struct VarScalarOffset<T: VarEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: VarEncodable> VarScalarOffset<T> {
@@ -18,7 +18,7 @@ impl<T: VarEncodable> VarScalarOffset<T> {
 #[derive(Copy, Clone)]
 pub struct FixedScalarOffset<T: FixedEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: FixedEncodable> FixedScalarOffset<T> {
@@ -30,7 +30,7 @@ impl<T: FixedEncodable> FixedScalarOffset<T> {
 #[derive(Copy, Clone)]
 pub struct UniformScalarOffset<T: UniformEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: UniformEncodable> UniformScalarOffset<T> {
@@ -42,7 +42,7 @@ impl<T: UniformEncodable> UniformScalarOffset<T> {
 #[derive(Copy, Clone)]
 pub struct FixedVecOffset<T: FixedEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: FixedEncodable> FixedVecOffset<T> {
@@ -64,7 +64,7 @@ impl<T: FixedEncodable> FixedVecOffset<T> {
 #[derive(Copy, Clone)]
 pub struct VarVecOffset<T: VarEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: VarEncodable> VarVecOffset<T> {
@@ -86,7 +86,7 @@ impl<T: VarEncodable> VarVecOffset<T> {
 #[derive(Copy, Clone)]
 pub struct UniformVecOffset<T: UniformEncodable> {
     addr: usize,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: UniformEncodable> UniformVecOffset<T> {
@@ -124,7 +124,7 @@ pub trait UniformEncodable: Sized {
 }
 
 pub struct Writer {
-    data: Vec<u8>
+    data: Vec<u8>,
 }
 
 impl Writer {
@@ -144,7 +144,11 @@ impl Writer {
         FixedScalarOffset::new(loc)
     }
 
-    pub fn write_uniform_scalar_with_size<T: UniformEncodable>(&mut self, s: T, size: usize) -> UniformScalarOffset<T> {
+    pub fn write_uniform_scalar_with_size<T: UniformEncodable>(
+        &mut self,
+        s: T,
+        size: usize,
+    ) -> UniformScalarOffset<T> {
         let loc = self.data.len();
         s.write_with_size_to(size, &mut self.data);
         UniformScalarOffset::new(loc)
@@ -192,7 +196,7 @@ impl Writer {
 }
 
 pub struct Reader<U: AsRef<[u8]>> {
-    data: U
+    data: U,
 }
 
 impl<U: AsRef<[u8]>> Reader<U> {
@@ -204,15 +208,25 @@ impl<U: AsRef<[u8]>> Reader<U> {
         T::read_fixed_from(self.data.as_ref(), offset)
     }
 
-    pub fn read_var_scalar<'a, T: VarEncodable>(&'a self, offset: VarScalarOffset<T>) -> (T, usize) {
+    pub fn read_var_scalar<'a, T: VarEncodable>(
+        &'a self,
+        offset: VarScalarOffset<T>,
+    ) -> (T, usize) {
         T::read_from(self.data.as_ref(), offset)
     }
 
-    pub fn read_uniform_scalar<'a, T: UniformEncodable>(&'a self, size: usize, offset: UniformScalarOffset<T>) -> T {
+    pub fn read_uniform_scalar<'a, T: UniformEncodable>(
+        &'a self,
+        size: usize,
+        offset: UniformScalarOffset<T>,
+    ) -> T {
         T::read_with_size_from(self.data.as_ref(), size, offset)
     }
 
-    pub fn read_fixed_vec<'a, T: FixedEncodable>(&'a self, offset: FixedVecOffset<T>) -> FixedVec<'a, T> {
+    pub fn read_fixed_vec<'a, T: FixedEncodable>(
+        &'a self,
+        offset: FixedVecOffset<T>,
+    ) -> FixedVec<'a, T> {
         FixedVec::new(self.data.as_ref(), offset)
     }
 
@@ -220,7 +234,10 @@ impl<U: AsRef<[u8]>> Reader<U> {
         VarVec::new(self.data.as_ref(), offset)
     }
 
-    pub fn read_uniform_vec<'a, T: UniformEncodable>(&'a self, offset: UniformVecOffset<T>) -> UniformVec<'a, T> {
+    pub fn read_uniform_vec<'a, T: UniformEncodable>(
+        &'a self,
+        offset: UniformVecOffset<T>,
+    ) -> UniformVec<'a, T> {
         UniformVec::new(self.data.as_ref(), offset)
     }
 
@@ -230,15 +247,24 @@ impl<U: AsRef<[u8]>> Reader<U> {
     }
 }
 
-pub fn read_fixed_vec_raw<'a, T: FixedEncodable>(buffer: &'a [u8], offset: FixedVecOffset<T>) -> FixedVec<'a, T> {
+pub fn read_fixed_vec_raw<'a, T: FixedEncodable>(
+    buffer: &'a [u8],
+    offset: FixedVecOffset<T>,
+) -> FixedVec<'a, T> {
     FixedVec::new(buffer, offset)
 }
 
-pub fn read_var_vec_raw<'a, T: VarEncodable>(buffer: &'a [u8], offset: VarVecOffset<T>) -> VarVec<'a, T> {
+pub fn read_var_vec_raw<'a, T: VarEncodable>(
+    buffer: &'a [u8],
+    offset: VarVecOffset<T>,
+) -> VarVec<'a, T> {
     VarVec::new(buffer, offset)
 }
 
-pub fn read_uniform_vec_raw<'a, T: UniformEncodable>(buffer: &'a [u8], offset: UniformVecOffset<T>) -> UniformVec<'a, T> {
+pub fn read_uniform_vec_raw<'a, T: UniformEncodable>(
+    buffer: &'a [u8],
+    offset: UniformVecOffset<T>,
+) -> UniformVec<'a, T> {
     UniformVec::new(buffer, offset)
 }
 
@@ -247,7 +273,7 @@ pub struct FixedVec<'a, T> {
     data: &'a [u8],
     start: usize,
     len: usize,
-    phantom: PhantomData<&'a T>
+    phantom: PhantomData<&'a T>,
 }
 
 impl<'a, T: FixedEncodable> FixedVec<'a, T> {
@@ -280,7 +306,7 @@ pub struct VarVec<'a, T> {
     data: &'a [u8],
     start: usize,
     len: usize,
-    phantom: PhantomData<&'a T>
+    phantom: PhantomData<&'a T>,
 }
 
 impl<'a, T: VarEncodable> VarVec<'a, T> {
@@ -331,7 +357,7 @@ pub struct UniformVec<'a, T> {
     start: usize,
     rec_size: usize,
     len: usize,
-    phantom: PhantomData<&'a T>
+    phantom: PhantomData<&'a T>,
 }
 
 impl<'a, T: UniformEncodable> UniformVec<'a, T> {
@@ -362,7 +388,7 @@ impl<'a, T: UniformEncodable> UniformVec<'a, T> {
 
 pub struct RelevScore {
     pub relev_score: u8,
-    pub coords: UniformVecOffset<Coord>
+    pub coords: UniformVecOffset<Coord>,
 }
 
 impl VarEncodable for RelevScore {
@@ -384,7 +410,7 @@ impl VarEncodable for RelevScore {
 #[derive(Copy, Clone)]
 pub struct Coord {
     pub coord: u32,
-    pub ids: FixedVecOffset<u32>
+    pub ids: FixedVecOffset<u32>,
 }
 
 impl UniformEncodable for Coord {
@@ -394,7 +420,7 @@ impl UniformEncodable for Coord {
             0..=255 => 4 + 1,
             256..=65535 => 4 + 2,
             65536..=16777215 => 4 + 3,
-            _ => 4 + 4
+            _ => 4 + 4,
         }
     }
 
@@ -407,7 +433,8 @@ impl UniformEncodable for Coord {
         let coord = u32::from_le_bytes(buffer[offset.addr..(offset.addr + 4)].try_into().unwrap());
         let ptr_size = size - 4;
         let mut ptr_buf = [0u8; 4];
-        ptr_buf[..ptr_size].clone_from_slice(&buffer[(offset.addr + 4)..(offset.addr + 4 + ptr_size)]);
+        ptr_buf[..ptr_size]
+            .clone_from_slice(&buffer[(offset.addr + 4)..(offset.addr + 4 + ptr_size)]);
         let ptr = u32::from_le_bytes(ptr_buf);
         let ids = FixedVecOffset::<u32>::new(ptr as usize);
         Coord { coord, ids }
@@ -426,7 +453,7 @@ impl FixedEncodable for u32 {
 }
 
 pub struct PhraseRecord {
-    pub relev_scores: VarVecOffset<RelevScore>
+    pub relev_scores: VarVecOffset<RelevScore>,
 }
 
 pub fn read_phrase_record_from<U: AsRef<[u8]>>(reader: &Reader<U>) -> PhraseRecord {
@@ -455,7 +482,7 @@ fn test_write() {
     struct Grid {
         relev_score: u8,
         coord: u32,
-        id: u32
+        id: u32,
     }
 
     let mut grids = vec![

@@ -71,7 +71,11 @@ fn coalesce_single<T: Borrow<GridStore> + Clone>(
 ) -> Result<Vec<CoalesceContext>, Error> {
     let bigger_max = 2 * MAX_CONTEXTS;
 
-    let grids = subquery.store.borrow().streaming_get_matching(&subquery.match_key, match_opts, bigger_max)?;
+    let grids = subquery.store.borrow().streaming_get_matching(
+        &subquery.match_key,
+        match_opts,
+        bigger_max,
+    )?;
     let mut max_relev: f64 = 0.;
     // TODO: rename all of the last things to previous things
     let mut last_id: u32 = 0;
@@ -189,8 +193,11 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
         // TODO: check if zooms are equivalent here, and only call adjust_to_zoom if they arent?
         // That way we could avoid a function call and creating a cloned object in the common case where the zooms are the same
         let adjusted_match_opts = match_opts.adjust_to_zoom(subquery.zoom);
-        let grids =
-            subquery.store.borrow().streaming_get_matching(&subquery.match_key, &adjusted_match_opts, 100_000)?;
+        let grids = subquery.store.borrow().streaming_get_matching(
+            &subquery.match_key,
+            &adjusted_match_opts,
+            100_000,
+        )?;
 
         // limit to 100,000 records -- we may want to experiment with this number; it was 500k in
         // carmen-cache, but hopefully we're sorting more intelligently on the way in here so

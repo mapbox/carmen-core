@@ -147,7 +147,11 @@ pub fn bbox_proximity_filter<'a>(
 /// index of the matching element. If the value is less than the first element and greater than the last,
 /// [`Result::Ok'] is returned containing either 0 or the length of the Vector. A ['Results:Err'] is
 /// returned if the offset is greater to the vector length.
-fn coord_binary_search<'a>(coords: &UniformVec<'a, Coord>, val: u32, offset: u32) -> Result<u32, &'a str> {
+fn coord_binary_search<'a>(
+    coords: &UniformVec<'a, Coord>,
+    val: u32,
+    offset: u32,
+) -> Result<u32, &'a str> {
     let len = coords.len() as u32;
 
     if offset >= len {

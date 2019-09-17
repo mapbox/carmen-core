@@ -16,7 +16,7 @@ type BuilderEntry = HashMap<u8, HashMap<u32, SmallVec<[u32; 4]>>>;
 pub struct GridStoreBuilder {
     path: PathBuf,
     data: BTreeMap<GridKey, BuilderEntry>,
-    bin_boundaries: Vec<u32>
+    bin_boundaries: Vec<u32>,
 }
 
 /// Extends a BuildEntry with the given values.
@@ -74,9 +74,8 @@ fn get_encoded_value(value: BuilderEntry) -> Result<Vec<u8>, Error> {
             ids.sort_by(|a, b| b.cmp(a));
             ids.dedup();
 
-            let encoded_ids = id_lists.entry(ids.clone()).or_insert_with(|| {
-                builder.write_fixed_vec(&ids)
-            });
+            let encoded_ids =
+                id_lists.entry(ids.clone()).or_insert_with(|| builder.write_fixed_vec(&ids));
 
             let encoded_coord = gridstore_format::Coord { coord, ids: encoded_ids.clone() };
             coords.push(encoded_coord);
@@ -97,7 +96,11 @@ fn get_encoded_value(value: BuilderEntry) -> Result<Vec<u8>, Error> {
 impl GridStoreBuilder {
     /// Makes a new GridStoreBuilder with a particular filename.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        Ok(GridStoreBuilder { path: path.as_ref().to_owned(), data: BTreeMap::new(), bin_boundaries: Vec::new() })
+        Ok(GridStoreBuilder {
+            path: path.as_ref().to_owned(),
+            data: BTreeMap::new(),
+            bin_boundaries: Vec::new(),
+        })
     }
 
     /// Inserts a new GridStore entry with the given values.
@@ -115,12 +118,22 @@ impl GridStoreBuilder {
         Ok(())
     }
 
-    pub fn compact_append(&mut self, key: &GridKey, relev: f64, score: u8, id: u32, source_phrase_hash: u8, coords: &[(u16, u16)]) {
-        let to_append = self.data.entry(key.to_owned()).or_insert_with(|| BuilderEntry::with_capacity(1));
+    pub fn compact_append(
+        &mut self,
+        key: &GridKey,
+        relev: f64,
+        score: u8,
+        id: u32,
+        source_phrase_hash: u8,
+        coords: &[(u16, u16)],
+    ) {
+        let to_append =
+            self.data.entry(key.to_owned()).or_insert_with(|| BuilderEntry::with_capacity(1));
 
         let relev_score = (relev_float_to_int(relev) << 4) | score;
         let id_hash = smallvec![(id << 8) | (source_phrase_hash as u32)];
-        let rs_entry = to_append.entry(relev_score).or_insert_with(|| HashMap::with_capacity(coords.len()));
+        let rs_entry =
+            to_append.entry(relev_score).or_insert_with(|| HashMap::with_capacity(coords.len()));
         for pair in coords {
             let zcoord = interleave_morton(pair.0, pair.1);
             match rs_entry.entry(zcoord) {
