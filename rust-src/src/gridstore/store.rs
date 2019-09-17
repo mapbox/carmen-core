@@ -9,7 +9,7 @@ use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use morton::deinterleave_morton;
 use ordered_float::OrderedFloat;
-use rocksdb::{DBCompressionType, Direction, IteratorMode, Options, DB};
+use rocksdb::{DBCompressionType, Direction, IteratorMode, Options, ReadOptions, DB};
 
 use crate::gridstore::common::*;
 use crate::gridstore::gridstore_format;
@@ -252,9 +252,11 @@ impl GridStore {
         opts.set_read_only(true);
         opts.set_compression_type(DBCompressionType::Lz4);
         opts.set_allow_mmap_reads(true);
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksum(false);
         let db = DB::open(&opts, &path)?;
 
-        let bin_boundaries: HashSet<u32> = match db.get("~BOUNDS")? {
+        let bin_boundaries: HashSet<u32> = match db.get_opt("~BOUNDS", &read_opts)? {
             Some(entry) => {
                 let encoded_boundaries: &[u8] = entry.as_ref();
                 encoded_boundaries
@@ -277,9 +279,11 @@ impl GridStore {
     #[inline(never)]
     pub fn get(&self, key: &GridKey) -> Result<Option<impl Iterator<Item = GridEntry>>, Error> {
         let mut db_key: Vec<u8> = Vec::new();
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksum(false);
         key.write_to(0, &mut db_key)?;
 
-        Ok(match self.db.get(&db_key)? {
+        Ok(match self.db.get_opt(&db_key, &read_opts)? {
             Some(value) => Some(decode_value(value)),
             None => None,
         })

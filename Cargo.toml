@@ -36,7 +36,7 @@ harness = false
 # support read-only opens; can switch back to upstream once
 # https://github.com/rust-rocksdb/rust-rocksdb/pull/268 lands
 [dependencies.rocksdb]
-git = "https://github.com/apendleton/rust-rocksdb.git"
-rev = "a456e3c5c5ecb512f8be3c2a429cd4358029a395"
+git = "https://github.com/CyanRook/rust-rocksdb.git"
+rev = "37434845f07d8745a9ff51f278c0e91ed39b9e58"
 default-features = false
 features = ["lz4"]
