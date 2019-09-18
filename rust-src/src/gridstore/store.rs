@@ -590,7 +590,9 @@ impl GridStore {
     }
 
     pub fn keys<'i>(&'i self) -> impl Iterator<Item = Result<GridKey, Error>> + 'i {
-        let db_iter = self.db.iterator(IteratorMode::Start);
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksum(false);
+        let db_iter = self.db.iterator_opt(IteratorMode::Start, &read_opts);
         db_iter.take_while(|(key, _)| key[0] == 0).map(|(key, _)| {
             let phrase_id = (&key[1..]).read_u32::<BigEndian>()?;
 
@@ -612,7 +614,9 @@ impl GridStore {
     pub fn iter<'i>(
         &'i self,
     ) -> impl Iterator<Item = Result<(GridKey, Vec<GridEntry>), Error>> + 'i {
-        let db_iter = self.db.iterator(IteratorMode::Start);
+        let mut read_opts = ReadOptions::default();
+        read_opts.set_verify_checksum(false);
+        let db_iter = self.db.iterator_opt(IteratorMode::Start, &read_opts);
         db_iter.take_while(|(key, _)| key[0] == 0).map(|(key, value)| {
             let phrase_id = (&key[1..]).read_u32::<BigEndian>()?;
 
