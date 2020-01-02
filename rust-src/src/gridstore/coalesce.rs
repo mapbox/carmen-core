@@ -179,6 +179,8 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
     let mut max_relev: f64 = 0.;
 
     for (i, subquery) in stack.iter().enumerate() {
+        let mut to_add_to_coalesced: HashMap<(u16, u16, u16), Vec<CoalesceContext>> =
+            HashMap::new();
         let compatible_zooms: Vec<u16> = stack
             .iter()
             .filter_map(|subquery_b| {
@@ -214,7 +216,7 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
             // See which other zooms are compatible.
             // These should all be lower zooms, so "zoom out" by dividing by 2^(difference in zooms)
             for other_zoom in compatible_zooms.iter() {
-                let scale_factor: u16 = 1 << (subquery.zoom - other_zoom);
+                let scale_factor: u16 = 1 << (subquery.zoom - *other_zoom);
                 let other_zxy = (
                     *other_zoom,
                     entries[0].grid_entry.x / scale_factor,
@@ -239,7 +241,7 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
 
                                 prev_mask = parent_entry.mask;
                                 prev_relev = parent_entry.grid_entry.relev;
-                            } else if context_mask & parent_entry.mask == 0 {
+                            } else if (context_mask & parent_entry.mask) == 0 {
                                 entries.push(parent_entry.clone());
 
                                 context_relev += parent_entry.grid_entry.relev;
@@ -273,18 +275,25 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
                     });
                 }
             } else if i == 0 || entries.len() > 1 {
-                if let Some(already_coalesced) = coalesced.get_mut(&zxy) {
+                if let Some(already_coalesced) = to_add_to_coalesced.get_mut(&zxy) {
                     already_coalesced.push(CoalesceContext {
                         entries,
                         mask: context_mask,
                         relev: context_relev,
                     });
                 } else {
-                    coalesced.insert(
+                    to_add_to_coalesced.insert(
                         zxy,
                         vec![CoalesceContext { entries, mask: context_mask, relev: context_relev }],
                     );
                 }
+            }
+        }
+        for (to_add_zxy, to_add_context) in to_add_to_coalesced {
+            if let Some(existing_vector) = coalesced.get_mut(&to_add_zxy) {
+                existing_vector.extend(to_add_context);
+            } else {
+                coalesced.insert(to_add_zxy, to_add_context);
             }
         }
     }
