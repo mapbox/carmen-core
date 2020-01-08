@@ -1,9 +1,7 @@
 use crate::gridstore::gridstore_format::{Coord, UniformVec};
 use itertools::Itertools;
 use morton::{deinterleave_morton, interleave_morton};
-use std::cmp::max;
 use std::cmp::Ordering::{Equal, Greater, Less};
-use std::collections::HashMap;
 
 /// Generate a tuple of the (min, max) range of the Coord Vector that overlaps with the bounding box
 ///
@@ -519,7 +517,6 @@ fn tiles_per_mile_by_zoom_test() {
 /// Convert proximity radius from miles into scaled number of tiles
 #[inline]
 pub fn proximity_radius(zoom: u16, radius: f64) -> f64 {
-    //debug_assert!(zoom <= 16);
     // In carmen-cache, there's an array of pre-calculated values for zooms 6-14, otherwise it does the exact same calculation as zoomTileRadius (now tiles_per_mile)
     // Does this even need to be a function?
     radius * tiles_per_mile_by_zoom(zoom)
@@ -543,7 +540,7 @@ fn proximity_radius_test() {
         1.2485901539399482,
         "proximity_radius in tiles for zoom 6, radius 40 is as expected"
     );
-    assert_eq!(proximity_radius(17, 400.), 1080.0, "proximity_radius should work for zoom 14");
+    assert_eq!(proximity_radius(17, 400.), 1080.0, "proximity_radius should work for zoom 17");
 }
 
 // We don't know the scale of the axis we're modeling, but it doesn't really
