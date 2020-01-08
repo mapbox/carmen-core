@@ -25,14 +25,14 @@ pub fn coalesce<T: Borrow<GridStore> + Clone + Debug>(
 
     let mut out = Vec::with_capacity(MAX_CONTEXTS);
     if !contexts.is_empty() {
-        let relev_max = contexts[0].relev;
+        let max_relevance = contexts[0].relev;
         let mut sets: HashSet<u64> = HashSet::new();
         for context in contexts {
             if out.len() >= MAX_CONTEXTS {
                 break;
             }
             // 0.25 is the smallest allowed relevance
-            if relev_max - context.relev >= 0.25 {
+            if max_relevance - context.relev >= 0.25 {
                 break;
             }
             let inserted = sets.insert(context.entries[0].tmp_id.into());
@@ -51,11 +51,10 @@ fn grid_to_coalesce_entry<T: Borrow<GridStore> + Clone>(
 ) -> CoalesceEntry {
     // Zoom has been adjusted in coalesce_multi, or correct zoom has been passed in for coalesce_single
     debug_assert!(match_opts.zoom == subquery.zoom);
-    // TODO: do we need to check for bbox here?
-    let relev = grid.grid_entry.relev * subquery.weight;
+    let relevance = grid.grid_entry.relev * subquery.weight;
 
     CoalesceEntry {
-        grid_entry: GridEntry { relev, ..grid.grid_entry },
+        grid_entry: GridEntry { relev: relevance, ..grid.grid_entry },
         matches_language: grid.matches_language,
         idx: subquery.idx,
         tmp_id: ((subquery.idx as u32) << 25) + grid.grid_entry.id,
@@ -76,11 +75,10 @@ fn coalesce_single<T: Borrow<GridStore> + Clone>(
         match_opts,
         bigger_max,
     )?;
-    let mut max_relev: f64 = 0.;
-    // TODO: rename all of the last things to previous things
-    let mut last_id: u32 = 0;
-    let mut last_relev: f64 = 0.;
-    let mut last_scoredist: f64 = 0.;
+    let mut max_relevance: f64 = 0.;
+    let mut previous_id: u32 = 0;
+    let mut previous_relevance: f64 = 0.;
+    let mut previous_scoredist: f64 = 0.;
     let mut min_scoredist = std::f64::MAX;
     let mut feature_count: usize = 0;
 
@@ -90,25 +88,27 @@ fn coalesce_single<T: Borrow<GridStore> + Clone>(
         let coalesce_entry = grid_to_coalesce_entry(&grid, subquery, match_opts);
 
         // If it's the same feature as the last one, but a lower scoredist don't add it
-        if last_id == coalesce_entry.grid_entry.id && coalesce_entry.scoredist <= last_scoredist {
+        if previous_id == coalesce_entry.grid_entry.id
+            && coalesce_entry.scoredist <= previous_scoredist
+        {
             continue;
         }
 
         if feature_count > bigger_max {
             if coalesce_entry.scoredist < min_scoredist {
                 continue;
-            } else if coalesce_entry.grid_entry.relev < last_relev {
+            } else if coalesce_entry.grid_entry.relev < previous_relevance {
                 // Grids should be sorted by relevance coming out of get_matching,
                 // so if it's lower than the last relevance, stop
                 break;
             }
         }
 
-        if max_relev - coalesce_entry.grid_entry.relev >= 0.25 {
+        if max_relevance - coalesce_entry.grid_entry.relev >= 0.25 {
             break;
         }
-        if coalesce_entry.grid_entry.relev > max_relev {
-            max_relev = coalesce_entry.grid_entry.relev;
+        if coalesce_entry.grid_entry.relev > max_relevance {
+            max_relevance = coalesce_entry.grid_entry.relev;
         }
 
         // Save current values before mocing into coalesced
@@ -130,7 +130,7 @@ fn coalesce_single<T: Borrow<GridStore> + Clone>(
             }
         }
 
-        if last_id != current_id {
+        if previous_id != current_id {
             feature_count += 1;
         }
         if match_opts.proximity.is_none() && feature_count > bigger_max {
@@ -139,9 +139,9 @@ fn coalesce_single<T: Borrow<GridStore> + Clone>(
         if current_scoredist < min_scoredist {
             min_scoredist = current_scoredist;
         }
-        last_id = current_id;
-        last_relev = current_relev;
-        last_scoredist = current_scoredist;
+        previous_id = current_id;
+        previous_relevance = current_relev;
+        previous_scoredist = current_scoredist;
     }
 
     let mut contexts: Vec<CoalesceContext> = coalesced
@@ -176,7 +176,9 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
     let mut coalesced: HashMap<(u16, u16, u16), Vec<CoalesceContext>> = HashMap::new();
     let mut contexts: Vec<CoalesceContext> = Vec::new();
 
-    let mut max_relev: f64 = 0.;
+    let mut max_relevance: f64 = 0.;
+
+    let mut zoom_adjusted_match_options = match_opts.clone();
 
     for (i, subquery) in stack.iter().enumerate() {
         let mut to_add_to_coalesced: HashMap<(u16, u16, u16), Vec<CoalesceContext>> =
@@ -192,12 +194,14 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
             })
             .dedup()
             .collect();
-        // TODO: check if zooms are equivalent here, and only call adjust_to_zoom if they arent?
-        // That way we could avoid a function call and creating a cloned object in the common case where the zooms are the same
-        let adjusted_match_opts = match_opts.adjust_to_zoom(subquery.zoom);
+
+        if zoom_adjusted_match_options.zoom != subquery.zoom {
+            zoom_adjusted_match_options = match_opts.adjust_to_zoom(subquery.zoom);
+        }
+
         let grids = subquery.store.borrow().streaming_get_matching(
             &subquery.match_key,
-            &adjusted_match_opts,
+            &zoom_adjusted_match_options,
             100_000,
         )?;
 
@@ -205,12 +209,13 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
         // carmen-cache, but hopefully we're sorting more intelligently on the way in here so
         // shouldn't need as many records. Still, we should limit it somehow.
         for grid in grids.take(100_000) {
-            let coalesce_entry = grid_to_coalesce_entry(&grid, subquery, &adjusted_match_opts);
+            let coalesce_entry =
+                grid_to_coalesce_entry(&grid, subquery, &zoom_adjusted_match_options);
 
             let zxy = (subquery.zoom, grid.grid_entry.x, grid.grid_entry.y);
 
             let mut context_mask = coalesce_entry.mask;
-            let mut context_relev = coalesce_entry.grid_entry.relev;
+            let mut context_relevance = coalesce_entry.grid_entry.relev;
             let mut entries: Vec<CoalesceEntry> = vec![coalesce_entry];
 
             // See which other zooms are compatible.
@@ -236,15 +241,15 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
                                 entries.pop();
                                 entries.push(parent_entry.clone());
                                 // Update the context-level aggregate relev
-                                context_relev -= prev_relev;
-                                context_relev += parent_entry.grid_entry.relev;
+                                context_relevance -= prev_relev;
+                                context_relevance += parent_entry.grid_entry.relev;
 
                                 prev_mask = parent_entry.mask;
                                 prev_relev = parent_entry.grid_entry.relev;
                             } else if (context_mask & parent_entry.mask) == 0 {
                                 entries.push(parent_entry.clone());
 
-                                context_relev += parent_entry.grid_entry.relev;
+                                context_relevance += parent_entry.grid_entry.relev;
                                 context_mask = context_mask | parent_entry.mask;
 
                                 prev_mask = parent_entry.mask;
@@ -254,24 +259,24 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
                     }
                 }
             }
-            if context_relev > max_relev {
-                max_relev = context_relev;
+            if context_relevance > max_relevance {
+                max_relevance = context_relevance;
             }
 
             if i == (stack.len() - 1) {
                 if entries.len() == 1 {
                     // Slightly penalize contexts that have no stacking
-                    context_relev -= 0.01;
+                    context_relevance -= 0.01;
                 } else if entries[0].mask > entries[1].mask {
                     // Slightly penalize contexts in ascending order
-                    context_relev -= 0.01
+                    context_relevance -= 0.01
                 }
 
-                if max_relev - context_relev < 0.25 {
+                if max_relevance - context_relevance < 0.25 {
                     contexts.push(CoalesceContext {
                         entries,
                         mask: context_mask,
-                        relev: context_relev,
+                        relev: context_relevance,
                     });
                 }
             } else if i == 0 || entries.len() > 1 {
@@ -279,12 +284,16 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
                     already_coalesced.push(CoalesceContext {
                         entries,
                         mask: context_mask,
-                        relev: context_relev,
+                        relev: context_relevance,
                     });
                 } else {
                     to_add_to_coalesced.insert(
                         zxy,
-                        vec![CoalesceContext { entries, mask: context_mask, relev: context_relev }],
+                        vec![CoalesceContext {
+                            entries,
+                            mask: context_mask,
+                            relev: context_relevance,
+                        }],
                     );
                 }
             }
@@ -300,7 +309,7 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
 
     for (_, matched) in coalesced {
         for context in matched {
-            if max_relev - context.relev < 0.25 {
+            if max_relevance - context.relev < 0.25 {
                 contexts.push(context);
             }
         }
