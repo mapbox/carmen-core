@@ -359,6 +359,11 @@ tape('word replacements', (t) => {
     }
     t.deepEquals(regularResults, set.fuzzyMatchMulti(multiToTry, 1, 1));
 
+    // test bin boundary retrieval -- this index contains four phrases,
+    // two of which start with "100 main" and two with "100 f"
+    const bins = new Uint32Array(set.getPrefixBins(2));
+    t.deepEquals(bins, new Uint32Array([0, 2, 4]), "bins are as expected");
+
     rimraf(tmpDir.name);
 
     t.end();
