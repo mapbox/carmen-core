@@ -5,7 +5,8 @@ extern crate neon_serde;
 
 use neon::mem::Handle;
 use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsInteger};
+use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber, JsInteger};
+use neon::js::binary::JsArrayBuffer;
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{Kind, JsError};
 
@@ -53,13 +54,11 @@ declare_types! {
 
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
 
-            this.grab(|fuzzyphrasesetbuilder| {
+            let result = this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
                         match builder.insert(v.as_slice()) {
-                            Ok(()) => {
-                                Ok(JsUndefined::new().upcast())
-                            },
+                            Ok(tmp_id) => Ok(tmp_id),
                             Err(e) => {
                                 println!("{:?}", e);
                                 JsError::throw(Kind::TypeError, e.description())
@@ -70,7 +69,9 @@ declare_types! {
                         JsError::throw(Kind::TypeError, "unable to insert()")
                     }
                 }
-            })
+            });
+
+            Ok(JsNumber::new(call.scope, result? as f64).upcast())
         }
 
         method loadWordReplacements(call) {
@@ -82,8 +83,13 @@ declare_types! {
             this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder {
                     Some(builder) => {
-                        builder.load_word_replacements(word_replacements);
-                        Ok(JsUndefined::new().upcast())
+                        match builder.load_word_replacements(word_replacements) {
+                            Ok(()) => Ok(JsUndefined::new().upcast()),
+                            Err(e) => {
+                                println!("{:?}", e);
+                                JsError::throw(Kind::TypeError, e.description())
+                            }
+                        }
                     },
                     None => {
                         JsError::throw(Kind::TypeError, "unable to load_word_replacements()")
@@ -96,13 +102,11 @@ declare_types! {
             let scope = call.scope;
             let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
 
-            this.grab(|fuzzyphrasesetbuilder| {
+            let result = this.grab(|fuzzyphrasesetbuilder| {
                 match fuzzyphrasesetbuilder.take() {
                     Some(builder) => {
                         match builder.finish() {
-                            Ok(_finish) => {
-                                Ok(JsUndefined::new().upcast())
-                            },
+                            Ok(id_map) => Ok(id_map),
                             Err(e) => {
                                 println!("{:?}", e);
                                 JsError::throw(Kind::TypeError, e.description())
@@ -113,7 +117,20 @@ declare_types! {
                         JsError::throw(Kind::TypeError, "unable to finish()")
                     }
                 }
-            })
+            });
+
+            let id_map = result?;
+            let mut buffer = JsArrayBuffer::new(scope, (id_map.len() * std::mem::size_of::<u32>()) as u32)?;
+            buffer.grab(|mut data| {
+                // ick ick ick -- there's no way to view this buffer as u32 in neon 0.1, so
+                // this nastiness is necessary until we upgrade
+                let slice = unsafe {
+                    let ptr = std::mem::transmute::<*mut u8, *mut u32>(data.as_mut_ptr());
+                    std::slice::from_raw_parts_mut(ptr, id_map.len())
+                };
+                slice.copy_from_slice(id_map.as_slice());
+            });
+            Ok(buffer.upcast())
         }
     }
 
@@ -284,6 +301,55 @@ declare_types! {
                     println!("{:?}", e);
                     JsError::throw(Kind::TypeError, e.description())
                 }
+            }
+        }
+
+        method getByPhraseId(call) {
+            let arg0 = call.arguments.require(call.scope, 0)?;
+            let phrase_id: u32 = neon_serde::from_value(call.scope, arg0)?;
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            let result = this.grab(|set| {
+                set.get_by_phrase_id(phrase_id)
+            });
+
+            match result {
+                Ok(Some(vec)) => Ok(neon_serde::to_value(call.scope, &vec)?.upcast()),
+                Ok(None) => Ok(JsUndefined::new().upcast()),
+                Err(e) => JsError::throw(Kind::TypeError, e.description())
+            }
+        }
+
+        method getPrefixBins(call) {
+            let arg0 = call.arguments.require(call.scope, 0)?;
+            let max_bin_size: usize = neon_serde::from_value(call.scope, arg0)?;
+
+            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+
+            let result = this.grab(|set| {
+                set.get_prefix_bins(max_bin_size)
+            });
+
+            match result {
+                Ok(bins) => {
+                    let mut bare_ids: Vec<u32> = bins.iter().map(|bin| bin.first.value() as u32).collect();
+                    if let Some(bin) = bins.last() {
+                        bare_ids.push(bin.last.value() as u32 + 1);
+                    }
+
+                    let mut buffer = JsArrayBuffer::new(call.scope, (bare_ids.len() * std::mem::size_of::<u32>()) as u32)?;
+                    buffer.grab(|mut data| {
+                        // again, there's no way to view this buffer as u32 in neon 0.1
+                        let slice = unsafe {
+                            let ptr = std::mem::transmute::<*mut u8, *mut u32>(data.as_mut_ptr());
+                            std::slice::from_raw_parts_mut(ptr, bare_ids.len())
+                        };
+                        slice.copy_from_slice(bare_ids.as_slice());
+                    });
+                    Ok(buffer.upcast())
+                },
+                Err(e) => JsError::throw(Kind::TypeError, e.description())
             }
         }
     }
