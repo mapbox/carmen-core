@@ -3,10 +3,8 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
-use dashmap::mapref::entry::Entry as DashMapEntry;
-use dashmap::DashMap;
 use failure::Error;
 use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
@@ -341,6 +339,24 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     node: &'a StackableNode<'a, T>,
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
+    match_opts: MatchOpts,
+}
+
+impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
+    fn new<'a>(
+        node: &'a StackableNode<'a, T>,
+        prev_state: Option<Arc<TreeCoalesceState>>,
+        prev_zoom: u16,
+        match_opts: &MatchOpts,
+    ) -> CoalesceStep<'a, T> {
+        let subquery = node.phrasematch.expect("phrasematch required");
+        let match_opts = if match_opts.zoom == subquery.store.borrow().zoom {
+            match_opts.clone()
+        } else {
+            match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
+        };
+        CoalesceStep { node, prev_state, prev_zoom, match_opts }
+    }
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> Ord for CoalesceStep<'_, T> {
@@ -360,12 +376,30 @@ impl<T: Borrow<GridStore> + Clone + Debug> PartialEq for CoalesceStep<'_, T> {
 }
 impl<T: Borrow<GridStore> + Clone + Debug> Eq for CoalesceStep<'_, T> {}
 
+struct KeyFetchStep<T: Borrow<GridStore> + Clone + Debug> {
+    key_id: u32,
+    subquery: PhrasematchSubquery<T>,
+    key: MatchKey,
+    match_opts: MatchOpts,
+    is_single: bool,
+}
+
+// this is the thing that comes out of the first phase of two-phase coalesce
+// for single coalesce, we just do everything in phase 1, whereas for multi-coalesce,
+// we only do the first part, depending what kind of node we're on, we'll return different things
+enum KeyFetchResult {
+    Single(ConstrainedPriorityQueue<CoalesceContext>),
+    Multi((u32, Vec<MatchEntry>)),
+}
+
 fn penalize_multi_context(context: &mut CoalesceContext) {
     // penalize single-entry stacks and ascending stacks for... some reason?
     if context.entries.len() == 1 || context.entries[0].mask > context.entries[1].mask {
         context.relev -= 0.01
     }
 }
+
+pub const COALESCE_CHUNK_SIZE: usize = 8;
 
 pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     stack_tree: &StackableNode<T>,
@@ -381,18 +415,15 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
     for node in &stack_tree.children {
         // push the first set of nodes into the queue
-        steps.push(CoalesceStep {
-            node: &node,
-            prev_state: None,
-            // prev_zoom doesn't matter, since we won't be doing lookups in prev_state
-            prev_zoom: 0,
-        });
+        steps.push(CoalesceStep::new(&node, None, 0, match_opts));
     }
 
     while steps.len() > 0 {
-        let mut step_chunk = Vec::with_capacity(8);
+        // as long as there's still work to do, we'll execute it a chunk at a time, peeling off
+        // the next few best nodes, and executing on them in parallel
+        let mut step_chunk = Vec::with_capacity(COALESCE_CHUNK_SIZE);
         let mut keys = Vec::new();
-        for _i in 0..8 {
+        for _i in 0..COALESCE_CHUNK_SIZE {
             if let Some(step) = steps.pop_max() {
                 // if we've already gotten as many items as we're going to return, only keep processing
                 // if anything we have left has the possibility of beating our worst current result
@@ -404,6 +435,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     }
                 }
 
+                // if this is a single item with no parents or children, we can do a more-efficient
+                // coalesce operation in the first phase, rather, than a two-phase coalesce
                 let is_single = step.prev_state.is_none() && step.node.children.len() == 0;
 
                 let subquery = step
@@ -411,20 +444,16 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     .phrasematch
                     .as_ref()
                     .expect("phrasematch must be set on non-root tree nodes");
-                let mut zoom_adjusted_match_options = match_opts.clone();
-                if zoom_adjusted_match_options.zoom != subquery.store.borrow().zoom {
-                    zoom_adjusted_match_options =
-                        match_opts.adjust_to_zoom(subquery.store.borrow().zoom);
-                }
+
                 for key_group in subquery.match_keys.iter() {
                     if is_single || !data_cache.contains_key(&key_group.id) {
-                        keys.push((
-                            key_group.id,
-                            subquery.clone(),
-                            key_group.key.clone(),
-                            zoom_adjusted_match_options.clone(),
+                        keys.push(KeyFetchStep {
+                            key_id: key_group.id,
+                            subquery: (*subquery).clone(),
+                            key: key_group.key.clone(),
+                            match_opts: step.match_opts.clone(),
                             is_single,
-                        ));
+                        });
                     }
                 }
 
@@ -438,8 +467,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         // just do the whole operation)
         let key_data: Vec<Result<_, Error>> = keys
             .into_par_iter()
-            .map(|(key_id, subquery, key, match_options, is_single)| {
-                if is_single {
+            .map(|key_step| {
+                if key_step.is_single {
                     // this is a first-level node with no children, so short-circuit to a single-coalesce
                     // stategy
                     //
@@ -451,47 +480,59 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
                         ConstrainedPriorityQueue::new(MAX_CONTEXTS);
 
-                    let grids = subquery.store.borrow().streaming_get_matching(
-                        &key,
-                        &match_options,
+                    let grids = key_step.subquery.store.borrow().streaming_get_matching(
+                        &key_step.key,
+                        &key_step.match_opts,
                         // double to give us some sorting wiggle room
                         bigger_max,
                     )?;
 
-                    let coalesced = tree_coalesce_single(&subquery, &match_options, grids, key_id)?;
+                    let coalesced = tree_coalesce_single(
+                        &key_step.subquery,
+                        &key_step.match_opts,
+                        grids,
+                        key_step.key_id,
+                    )?;
 
                     // this will be sorted worst to best, so iterate backwards
                     for entry in coalesced {
                         step_contexts.push(entry);
                     }
 
-                    Ok((Some(step_contexts), None))
+                    Ok(KeyFetchResult::Single(step_contexts))
                 } else {
-                    let data: Vec<_> = subquery
+                    let data: Vec<_> = key_step
+                        .subquery
                         .store
                         .borrow()
-                        .streaming_get_matching(&key, &match_options, MAX_GRIDS_PER_PHRASE)?
+                        .streaming_get_matching(
+                            &key_step.key,
+                            &key_step.match_opts,
+                            MAX_GRIDS_PER_PHRASE,
+                        )?
                         .take(MAX_GRIDS_PER_PHRASE)
                         .collect();
-                    Ok((None, Some((key_id, data))))
+                    Ok(KeyFetchResult::Multi((key_step.key_id, data)))
                 }
             })
             .collect();
 
         for result in key_data {
-            let result = result?;
-            if let (Some(phrasematch_contexts), _) = result {
-                // for coalesce single we got back full-on contexts
-                for context in phrasematch_contexts {
-                    contexts.push(context);
+            match result? {
+                KeyFetchResult::Single(phrasematch_contexts) => {
+                    // for coalesce single we got back full-on contexts
+                    for context in phrasematch_contexts {
+                        contexts.push(context);
+                    }
                 }
-            } else if let (_, Some((key_id, data))) = result {
-                // for coalesce multi we got back cached data to be used in the next step
-                data_cache.insert(key_id, data);
+                KeyFetchResult::Multi((key_id, data)) => {
+                    // for coalesce multi we got back cached data to be used in the next step
+                    data_cache.insert(key_id, data);
+                }
             }
         }
 
-        // for complex coalesce, we do the coalescing in a second phase now that the data has been
+        // phase 2: for complex coalesce, we do the coalescing in a second phase now that the data has been
         // fetched
         let chunk_results: Vec<Result<(Vec<CoalesceContext>, Vec<CoalesceStep<'_, T>>), Error>> =
             step_chunk
@@ -502,12 +543,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         .phrasematch
                         .as_ref()
                         .expect("phrasematch must be set on non-root tree nodes");
-
-                    let mut zoom_adjusted_match_options = match_opts.clone();
-                    if zoom_adjusted_match_options.zoom != subquery.store.borrow().zoom {
-                        zoom_adjusted_match_options =
-                            match_opts.adjust_to_zoom(subquery.store.borrow().zoom);
-                    }
 
                     let mut phrasematch_contexts: Vec<CoalesceContext> = Vec::new();
 
@@ -535,7 +570,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     let entry = grid_to_coalesce_entry(
                                         &grid,
                                         &subquery,
-                                        &zoom_adjusted_match_options,
+                                        &step.match_opts,
                                         key_group.id,
                                     );
                                     for parent_context in already_coalesced {
@@ -567,7 +602,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 let entry = grid_to_coalesce_entry(
                                     &grid,
                                     &subquery,
-                                    &zoom_adjusted_match_options,
+                                    &step.match_opts,
                                     key_group.id,
                                 );
                                 let context = CoalesceContext {
@@ -593,11 +628,12 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     if state.len() > 0 {
                         let state = Arc::new(state);
                         for child in step.node.children.iter() {
-                            next_steps.push(CoalesceStep {
-                                node: &child,
-                                prev_state: Some(state.clone()),
-                                prev_zoom: subquery.store.borrow().zoom,
-                            });
+                            next_steps.push(CoalesceStep::new(
+                                &child,
+                                Some(state.clone()),
+                                subquery.store.borrow().zoom,
+                                match_opts,
+                            ));
                         }
                     }
 
