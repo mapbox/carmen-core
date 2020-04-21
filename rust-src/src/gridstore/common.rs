@@ -1,9 +1,13 @@
+use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 
 use crate::gridstore::store::GridStore;
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
+use min_max_heap::MinMaxHeap;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug)]
@@ -362,12 +366,43 @@ pub struct CoalesceEntry {
     pub phrasematch_id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialOrd, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoalesceContext {
     pub mask: u32,
     pub relev: f64,
     pub entries: Vec<CoalesceEntry>,
 }
+
+impl CoalesceContext {
+    #[inline(always)]
+    fn sort_key(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>, Reverse<u16>, u16, u16, u32) {
+        (
+            OrderedFloat(self.relev),
+            OrderedFloat(self.entries[0].scoredist),
+            Reverse(self.entries[0].idx),
+            self.entries[0].grid_entry.x,
+            self.entries[0].grid_entry.y,
+            self.entries[0].grid_entry.id,
+        )
+    }
+}
+
+impl Ord for CoalesceContext {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.sort_key().cmp(&other.sort_key())
+    }
+}
+impl PartialOrd for CoalesceContext {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for CoalesceContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.sort_key() == other.sort_key()
+    }
+}
+impl Eq for CoalesceContext {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MatchKeyWithId {
@@ -383,6 +418,57 @@ pub struct PhrasematchSubquery<T: Borrow<GridStore> + Clone> {
     pub weight: f64,
     pub mask: u32,
     pub match_keys: Vec<MatchKeyWithId>,
+}
+
+pub struct ConstrainedPriorityQueue<T: Ord> {
+    pub max_size: usize,
+    heap: MinMaxHeap<T>,
+}
+
+impl<T: Ord> ConstrainedPriorityQueue<T> {
+    pub fn new(max_size: usize) -> Self {
+        ConstrainedPriorityQueue { max_size, heap: MinMaxHeap::new() }
+    }
+
+    pub fn push(&mut self, element: T) -> bool {
+        if self.heap.len() >= self.max_size {
+            if let Some(min) = self.heap.peek_min() {
+                if element > *min {
+                    self.heap.replace_min(element);
+                    return true;
+                }
+            }
+        } else {
+            self.heap.push(element);
+            return true;
+        }
+        false
+    }
+
+    pub fn pop_max(&mut self) -> Option<T> {
+        self.heap.pop_max()
+    }
+
+    pub fn peek_min(&self) -> Option<&T> {
+        self.heap.peek_min()
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn into_vec_desc(self) -> Vec<T> {
+        self.heap.into_vec_desc()
+    }
+}
+
+impl<T: Ord> IntoIterator for ConstrainedPriorityQueue<T> {
+    type Item = T;
+    type IntoIter = min_max_heap::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.heap.into_iter()
+    }
 }
 
 #[inline]

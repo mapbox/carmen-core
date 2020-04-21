@@ -16,7 +16,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
 
 // Util functions for tests and benchmarks
 
@@ -214,12 +214,12 @@ struct SubqueryPlaceholder {
 
 pub fn prepare_phrasematches(
     datafile: &str,
-) -> Vec<(Vec<PhrasematchSubquery<Rc<GridStore>>>, MatchOpts)> {
+) -> Vec<(Vec<PhrasematchSubquery<Arc<GridStore>>>, MatchOpts)> {
     let path = ensure_downloaded(datafile);
     let decoder = Decoder::new(File::open(path).unwrap()).unwrap();
     let file = io::BufReader::new(decoder);
-    let mut stores: HashMap<String, Rc<GridStore>> = HashMap::new();
-    let out: Vec<(Vec<PhrasematchSubquery<Rc<GridStore>>>, MatchOpts)> = file
+    let mut stores: HashMap<String, Arc<GridStore>> = HashMap::new();
+    let out: Vec<(Vec<PhrasematchSubquery<Arc<GridStore>>>, MatchOpts)> = file
         .lines()
         .filter_map(|l| {
             let record = l.unwrap();
@@ -247,7 +247,7 @@ pub fn prepare_phrasematches(
                                     placeholder.store.coalesce_radius,
                                 )
                                 .unwrap();
-                                Rc::new(gs)
+                                Arc::new(gs)
                             });
                         PhrasematchSubquery {
                             store: store.clone(),
@@ -271,12 +271,12 @@ pub fn prepare_phrasematches(
 
 pub fn prepare_stackable_phrasematches(
     datafile: &str,
-) -> Vec<Vec<PhrasematchSubquery<Rc<GridStore>>>> {
+) -> Vec<Vec<PhrasematchSubquery<Arc<GridStore>>>> {
     let path = ensure_downloaded(datafile);
     let decoder = Decoder::new(File::open(path).unwrap()).unwrap();
     let file = io::BufReader::new(decoder);
-    let mut stores: HashMap<String, Rc<GridStore>> = HashMap::new();
-    let out: Vec<Vec<PhrasematchSubquery<Rc<GridStore>>>> = file
+    let mut stores: HashMap<String, Arc<GridStore>> = HashMap::new();
+    let out: Vec<Vec<PhrasematchSubquery<Arc<GridStore>>>> = file
         .lines()
         .filter_map(|l| {
             let record = l.unwrap();
@@ -301,7 +301,7 @@ pub fn prepare_stackable_phrasematches(
                                     placeholder.store.coalesce_radius,
                                 )
                                 .unwrap();
-                                Rc::new(gs)
+                                Arc::new(gs)
                             });
                         PhrasematchSubquery {
                             store: store.clone(),
