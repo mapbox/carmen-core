@@ -517,7 +517,7 @@ pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let js_phrasematch_result = { cx.argument::<JsArray>(0)? };
     let phrasematch_results: Vec<PhrasematchSubquery<ArcGridStore>> =
         deserialize_phrasesubq(&mut cx, js_phrasematch_result)?;
-    stackable(&phrasematch_results, None, 0, HashSet::new(), 0, 129, 0.0, 0);
+    stackable(&phrasematch_results);
 
     Ok(cx.undefined())
 }

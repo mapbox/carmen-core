@@ -787,7 +787,7 @@ pub fn stack_and_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     // currently stackable requires double-wrapping the phrasematches vector, which requires an
     // extra clone; ideally we wouldn't do that
     let collapsed_phrasematches = collapse_phrasematches(phrasematches.to_vec());
-    let tree = stackable(&collapsed_phrasematches, None, 0, HashSet::new(), 0, 129, 0.0, 0);
+    let tree = stackable(&collapsed_phrasematches);
     tree_coalesce(&tree, &match_opts)
 }
 
