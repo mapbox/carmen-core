@@ -141,48 +141,59 @@ pub fn binned_stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
         zoom: zoom,
     };
 
-    for (_k, v) in binned_phrasematch {
-        for phrasematches in v.iter() {
-            if node.phrasematch.is_some() {
-                if node.zoom > phrasematches.store.borrow().zoom {
-                    continue;
-                } else if node.zoom == phrasematches.store.borrow().zoom {
-                    if node.idx > phrasematches.idx {
+    let mut keys: Vec<_> = binned_phrasematch.keys().collect();
+    keys.sort();
+    let mut iter = keys.iter().peekable();
+
+    for (_key, value) in binned_phrasematch.iter() {
+        for v in value.iter() {
+            node.phrasematch = Some(v);
+            node.children = vec![];
+            node.mask = v.mask;
+            node.bmask = v.clone().non_overlapping_indexes;
+            node.idx = v.idx;
+            node.zoom = v.store.borrow().zoom;
+
+            let iter_next = iter.next();
+            let next_feature_group = binned_phrasematch.get(iter_next.unwrap()).unwrap();
+            for phrasematches in next_feature_group.iter() {
+                if node.phrasematch.is_some() {
+                    if node.zoom > phrasematches.store.borrow().zoom {
                         continue;
+                    } else if node.zoom == phrasematches.store.borrow().zoom {
+                        if node.idx > phrasematches.idx {
+                            continue;
+                        }
                     }
                 }
-            }
+                if (node.mask & phrasematches.mask) == 0
+                    && phrasematches.non_overlapping_indexes.contains(&node.idx) == false
+                {
+                    let target_mask = &phrasematches.mask | node.mask;
+                    let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
+                    let phrasematch_bmask: HashSet<u16> =
+                        phrasematches.non_overlapping_indexes.iter().cloned().collect();
+                    target_bmask.extend(&phrasematch_bmask);
+                    let target_relev = 0.0 + phrasematches.weight;
 
-            if (node.mask & phrasematches.mask) == 0
-                && phrasematches.non_overlapping_indexes.contains(&node.idx) == false
-            {
-                let target_mask = &phrasematches.mask | node.mask;
-                let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
-                let phrasematch_bmask: HashSet<u16> =
-                    phrasematches.non_overlapping_indexes.iter().cloned().collect();
-                target_bmask.extend(&phrasematch_bmask);
-                let target_relev = 0.0 + phrasematches.weight;
-
-                node.children.push(binned_stackable(
-                    &binned_phrasematch,
-                    Some(&phrasematches),
-                    target_bmask,
-                    target_mask,
-                    phrasematches.idx,
-                    target_relev,
-                    phrasematches.store.borrow().zoom,
-                ));
+                    node.children.push(binned_stackable(
+                        &binned_phrasematch,
+                        Some(&phrasematches),
+                        target_bmask,
+                        target_mask,
+                        phrasematches.idx,
+                        target_relev,
+                        phrasematches.store.borrow().zoom,
+                    ));
+                }
             }
         }
     }
-    node.children.sort_by_key(|node| Reverse(OrderedFloat(node.max_relev)));
-
-    if !node.children.is_empty() {
-        node.max_relev = node.max_relev + node.children[0].max_relev;
-    }
-
     node
 }
+/*
+
+*/
 
 #[cfg(test)]
 mod test {
@@ -255,27 +266,28 @@ mod test {
         }
 
         let tree = binned_stackable(&binned_phrasematch, None, HashSet::new(), 0, 129, 0.0, 0);
-        let a1_children_ids: Vec<u32> = tree.clone().children[0]
-            .clone()
-            .children
-            .iter()
-            .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
-            .collect();
-        assert_eq!(vec![1, 2], a1_children_ids, "a1 can stack with b1 and b2");
-        let b1_children_ids: Vec<u32> = tree.clone().children[1]
-            .clone()
-            .children
-            .iter()
-            .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
-            .collect();
-        assert_eq!(0, b1_children_ids.len(), "b1 cannot stack with b2, same nmask");
-        let b2_children_ids: Vec<u32> = tree.clone().children[2]
-            .clone()
-            .children
-            .iter()
-            .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
-            .collect();
-        assert_eq!(0, b2_children_ids.len(), "b2 cannot stack with b1, same nmask");
+        println!("{:?}", tree);
+        // let a1_children_ids: Vec<u32> = tree.clone().children[0]
+        //     .clone()
+        //     .children
+        //     .iter()
+        //     .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+        //     .collect();
+        // assert_eq!(vec![1, 2], a1_children_ids, "a1 can stack with b1 and b2");
+        // let b1_children_ids: Vec<u32> = tree.clone().children[1]
+        //     .clone()
+        //     .children
+        //     .iter()
+        //     .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+        //     .collect();
+        // assert_eq!(0, b1_children_ids.len(), "b1 cannot stack with b2, same nmask");
+        // let b2_children_ids: Vec<u32> = tree.clone().children[2]
+        //     .clone()
+        //     .children
+        //     .iter()
+        //     .map(|node| node.phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+        //     .collect();
+        // assert_eq!(0, b2_children_ids.len(), "b2 cannot stack with b1, same nmask");
     }
 
     // #[test]
