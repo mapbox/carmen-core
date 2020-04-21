@@ -2,7 +2,7 @@
 use ordered_float::OrderedFloat;
 use std::borrow::Borrow;
 use std::cmp::Reverse;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 
 use crate::gridstore::common::*;
@@ -123,13 +123,14 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
 }
 
 pub fn binned_stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
-    binned_phrasematch: &'a HashMap<u16, Vec<PhrasematchSubquery<T>>>,
+    binned_phrasematch: &'a Vec<Vec<PhrasematchSubquery<T>>>,
     phrasematch_result: Option<&'a PhrasematchSubquery<T>>,
     bmask: HashSet<u16>,
     mask: u32,
     idx: u16,
     max_relev: f64,
     zoom: u16,
+    start_type_idx: usize,
 ) -> StackableNodeCopy<'a, T> {
     let mut node = StackableNodeCopy {
         phrasematch: phrasematch_result,
@@ -141,51 +142,28 @@ pub fn binned_stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
         zoom: zoom,
     };
 
-    let mut keys: Vec<_> = binned_phrasematch.keys().collect();
-    keys.sort();
-    let mut iter = keys.iter().peekable();
+    for (type_idx, phrasematch_group) in binned_phrasematch.iter().enumerate().skip(start_type_idx) {
+        for phrasematches in phrasematch_group.iter() {
+            if (node.mask & phrasematches.mask) == 0
+                && phrasematches.non_overlapping_indexes.contains(&node.idx) == false
+            {
+                let target_mask = &phrasematches.mask | node.mask;
+                let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
+                let phrasematch_bmask: HashSet<u16> =
+                    phrasematches.non_overlapping_indexes.iter().cloned().collect();
+                target_bmask.extend(&phrasematch_bmask);
+                let target_relev = 0.0 + phrasematches.weight;
 
-    for (_key, value) in binned_phrasematch.iter() {
-        for v in value.iter() {
-            node.phrasematch = Some(v);
-            node.children = vec![];
-            node.mask = v.mask;
-            node.bmask = v.clone().non_overlapping_indexes;
-            node.idx = v.idx;
-            node.zoom = v.store.borrow().zoom;
-
-            let iter_next = iter.next();
-            let next_feature_group = binned_phrasematch.get(iter_next.unwrap()).unwrap();
-            for phrasematches in next_feature_group.iter() {
-                if node.phrasematch.is_some() {
-                    if node.zoom > phrasematches.store.borrow().zoom {
-                        continue;
-                    } else if node.zoom == phrasematches.store.borrow().zoom {
-                        if node.idx > phrasematches.idx {
-                            continue;
-                        }
-                    }
-                }
-                if (node.mask & phrasematches.mask) == 0
-                    && phrasematches.non_overlapping_indexes.contains(&node.idx) == false
-                {
-                    let target_mask = &phrasematches.mask | node.mask;
-                    let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
-                    let phrasematch_bmask: HashSet<u16> =
-                        phrasematches.non_overlapping_indexes.iter().cloned().collect();
-                    target_bmask.extend(&phrasematch_bmask);
-                    let target_relev = 0.0 + phrasematches.weight;
-
-                    node.children.push(binned_stackable(
-                        &binned_phrasematch,
-                        Some(&phrasematches),
-                        target_bmask,
-                        target_mask,
-                        phrasematches.idx,
-                        target_relev,
-                        phrasematches.store.borrow().zoom,
-                    ));
-                }
+                node.children.push(binned_stackable(
+                    &binned_phrasematch,
+                    Some(&phrasematches),
+                    target_bmask,
+                    target_mask,
+                    phrasematches.idx,
+                    target_relev,
+                    phrasematches.store.borrow().zoom,
+                    type_idx + 1
+                ));
             }
         }
     }
@@ -200,6 +178,8 @@ mod test {
     use super::*;
     use crate::gridstore::builder::*;
     use crate::gridstore::common::MatchPhrase::Range;
+
+    use std::collections::BTreeMap;
 
     #[test]
     fn simple_stackable_test() {
@@ -255,8 +235,8 @@ mod test {
         };
 
         let phrasematch_results = vec![a1, b1, b2];
-        let mut binned_phrasematch: HashMap<u16, Vec<PhrasematchSubquery<&GridStore>>> =
-            HashMap::new();
+        let mut binned_phrasematch: BTreeMap<u16, Vec<PhrasematchSubquery<&GridStore>>> =
+            BTreeMap::new();
 
         for phrasematch in phrasematch_results {
             binned_phrasematch
@@ -264,8 +244,9 @@ mod test {
                 .or_insert(Vec::new())
                 .push(phrasematch);
         }
+        let binned_phrasematch: Vec<_> = binned_phrasematch.into_iter().map(|(_k, v)| v).collect();
 
-        let tree = binned_stackable(&binned_phrasematch, None, HashSet::new(), 0, 129, 0.0, 0);
+        let tree = binned_stackable(&binned_phrasematch, None, HashSet::new(), 0, 129, 0.0, 0, 0);
         println!("{:?}", tree);
         // let a1_children_ids: Vec<u32> = tree.clone().children[0]
         //     .clone()
