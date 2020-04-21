@@ -11,7 +11,7 @@ use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufWriter, Read, Write};
@@ -324,13 +324,12 @@ pub fn prepare_stackable_phrasematches(
 
 pub fn binned_phrasematches(
     pms: Vec<PhrasematchSubquery<Rc<GridStore>>>,
-) -> HashMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> {
-    let mut binned_phrasematch: HashMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> =
-        HashMap::new();
+) -> BTreeMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> {
+    let mut binned_phrasematch: BTreeMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> =
+        BTreeMap::new();
 
     for pm in pms {
         binned_phrasematch.entry(pm.store.type_id).or_insert(Vec::new()).push(pm)
     }
-
     binned_phrasematch
 }

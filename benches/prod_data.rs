@@ -56,13 +56,16 @@ pub fn benchmark(c: &mut Criterion) {
                 let queries = prepare_stackable_phrasematches(file);
                 let collapsed: Vec<_> =
                     queries.iter().map(|q| collapse_phrasematches(q.to_vec())).collect();
-                let binned_phrasematches: Vec<_> =
-                    collapsed.into_iter().map(|b| binned_phrasematches(b)).collect();
+                let binned_phrasematches: Vec<_> = collapsed
+                    .into_iter()
+                    .map(|b| binned_phrasematches(b).into_iter().map(|(_k, v)| v).collect())
+                    .collect();
+
                 let mut cycle = binned_phrasematches.iter().cycle();
 
                 b.iter(|| {
                     let pm = cycle.next().unwrap();
-                    binned_stackable(pm, None, HashSet::new(), 0, 129, 0.0, 0)
+                    binned_stackable(&pm, None, HashSet::new(), 0, 129, 0.0, 0, 0)
                 })
             })
             .sample_size(2),
