@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use criterion::{Bencher, Benchmark, Criterion};
 
 use carmen_core::gridstore::*;
@@ -22,12 +20,8 @@ pub fn benchmark(c: &mut Criterion) {
                     .into_iter()
                     .map(|(query, opts)| (collapse_phrasematches(query), opts))
                     .collect();
-                let trees: Vec<_> = collapsed
-                    .iter()
-                    .map(|(query, opts)| {
-                        (stackable(query, None, 0, HashSet::new(), 0, 129, 0.0, 0), opts)
-                    })
-                    .collect();
+                let trees: Vec<_> =
+                    collapsed.iter().map(|(query, opts)| (stackable(query), opts)).collect();
 
                 let mut cycle = trees.iter().cycle();
 
@@ -56,16 +50,15 @@ pub fn benchmark(c: &mut Criterion) {
                 let queries = prepare_stackable_phrasematches(file);
                 let collapsed: Vec<_> =
                     queries.iter().map(|q| collapse_phrasematches(q.to_vec())).collect();
-                let binned_phrasematches: Vec<_> =
-                    collapsed.into_iter().map(|b| binned_phrasematches(b)).collect();
-                let mut cycle = binned_phrasematches.iter().cycle();
+
+                let mut cycle = collapsed.iter().cycle();
 
                 b.iter(|| {
                     let pm = cycle.next().unwrap();
-                    binned_stackable(pm, None, HashSet::new(), 0, 129, 0.0, 0)
+                    stackable(&pm)
                 })
             })
-            .sample_size(2),
+            .sample_size(20),
         );
     }
 }

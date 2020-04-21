@@ -321,16 +321,3 @@ pub fn prepare_stackable_phrasematches(
         .collect();
     out
 }
-
-pub fn binned_phrasematches(
-    pms: Vec<PhrasematchSubquery<Rc<GridStore>>>,
-) -> HashMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> {
-    let mut binned_phrasematch: HashMap<u16, Vec<PhrasematchSubquery<Rc<GridStore>>>> =
-        HashMap::new();
-
-    for pm in pms {
-        binned_phrasematch.entry(pm.store.type_id).or_insert(Vec::new()).push(pm)
-    }
-
-    binned_phrasematch
-}
