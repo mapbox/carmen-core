@@ -20,12 +20,8 @@ pub fn benchmark(c: &mut Criterion) {
                     .into_iter()
                     .map(|(query, opts)| (collapse_phrasematches(query), opts))
                     .collect();
-                let trees: Vec<_> = collapsed
-                    .iter()
-                    .map(|(query, opts)| {
-                        (stackable(query), opts)
-                    })
-                    .collect();
+                let trees: Vec<_> =
+                    collapsed.iter().map(|(query, opts)| (stackable(query), opts)).collect();
 
                 let mut cycle = trees.iter().cycle();
 

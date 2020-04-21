@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::borrow::Borrow;
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
 use crate::gridstore::common::*;
@@ -24,9 +24,7 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> StackableNode<'a, T> {
 }
 
 //tree traversal used only for tests
-pub fn bfs<T: Borrow<GridStore> + Clone + Debug>(
-    root: StackableNode<T>,
-) -> Vec<StackableNode<T>> {
+pub fn bfs<T: Borrow<GridStore> + Clone + Debug>(root: StackableNode<T>) -> Vec<StackableNode<T>> {
     let mut node_vec: Vec<StackableNode<T>> = vec![];
     let mut stack: Vec<_> = vec![];
 
@@ -45,8 +43,7 @@ pub fn bfs<T: Borrow<GridStore> + Clone + Debug>(
 pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
     phrasematches: &'a Vec<PhrasematchSubquery<T>>,
 ) -> StackableNode<'a, T> {
-    let mut binned_phrasematches: BTreeMap<u16, Vec<&'a PhrasematchSubquery<T>>> =
-        BTreeMap::new();
+    let mut binned_phrasematches: BTreeMap<u16, Vec<&'a PhrasematchSubquery<T>>> = BTreeMap::new();
     for phrasematch in phrasematches {
         binned_phrasematches
             .entry(phrasematch.store.borrow().type_id)
