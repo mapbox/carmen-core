@@ -1,7 +1,6 @@
 use carmen_core::gridstore::*;
 use test_utils::*;
-
-use std::collections::HashSet;
+use fixedbitset::FixedBitSet;
 
 const ALL_LANGUAGES: u128 = u128::max_value();
 
@@ -26,7 +25,7 @@ fn coalesce_single_test_proximity_quadrants() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -126,7 +125,7 @@ fn coalesce_single_test_proximity_basic() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -177,7 +176,7 @@ fn coalesce_single_test_language_penalty() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -228,7 +227,7 @@ fn coalesce_multi_test_language_penalty() {
         1,
         14,
         1,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -244,7 +243,7 @@ fn coalesce_multi_test_language_penalty() {
         2,
         6,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -325,7 +324,7 @@ fn coalesce_single_test() {
         1,
         6,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         40.,
     );
     let subquery = PhrasematchSubquery {
@@ -579,7 +578,7 @@ fn coalesce_single_languages_test() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -623,7 +622,7 @@ fn coalesce_single_languages_test() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -667,7 +666,7 @@ fn coalesce_single_languages_test() {
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
-        non_overlapping_indexes: HashSet::new(),
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
         weight: 1.,
         match_keys: vec![MatchKeyWithId {
             id: 0,
@@ -722,7 +721,7 @@ fn coalesce_multi_test() {
         0,
         1,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         40.,
     );
 
@@ -738,7 +737,7 @@ fn coalesce_multi_test() {
         1,
         2,
         1,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         40.,
     );
 
@@ -986,7 +985,7 @@ fn coalesce_multi_languages_test() {
         0,
         1,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -1021,7 +1020,7 @@ fn coalesce_multi_languages_test() {
         1,
         1,
         1,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -1218,7 +1217,7 @@ fn coalesce_multi_scoredist() {
         0,
         0,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -1234,7 +1233,7 @@ fn coalesce_multi_scoredist() {
         1,
         14,
         1,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -1313,7 +1312,7 @@ fn coalesce_multi_test_bbox() {
         0,
         1,
         0,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
     let store2 = create_store(
@@ -1327,7 +1326,7 @@ fn coalesce_multi_test_bbox() {
         1,
         2,
         1,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 
@@ -1342,7 +1341,7 @@ fn coalesce_multi_test_bbox() {
         2,
         5,
         2,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         200.,
     );
 

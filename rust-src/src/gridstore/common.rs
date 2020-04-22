@@ -1,6 +1,5 @@
 use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
-use std::collections::HashSet;
 
 use crate::gridstore::store::GridStore;
 
@@ -8,7 +7,8 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use fixedbitset::FixedBitSet;
 
 #[derive(Copy, Clone, Debug)]
 pub enum TypeMarker {
@@ -410,15 +410,34 @@ pub struct MatchKeyWithId {
     pub id: u32,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PhrasematchSubquery<T: Borrow<GridStore> + Clone> {
     pub store: T,
     pub idx: u16,
-    pub non_overlapping_indexes: HashSet<u16>, // the field formerly known as bmask
+    #[serde(serialize_with = "serialize_fixedbitset", deserialize_with = "deserialize_fixedbitset")]
+    pub non_overlapping_indexes: FixedBitSet,
     pub weight: f64,
     pub mask: u32,
     pub match_keys: Vec<MatchKeyWithId>,
 }
+
+fn serialize_fixedbitset<S>(bits: &FixedBitSet, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+{
+    serializer.collect_seq(bits.into())
+}
+
+fn deserialize_fixedbitset<'de, D>(deserializer: D) -> Result<FixedBitSet, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+{
+    let vector = deserializer.deserialize_seq(serde::de::impls::VecVisitor::new());
+    let fixed_bit_set: FixedBitSet = hs.into_iter().collect();
+    Ok(fixed_bit_set)
+}
+
+
 
 pub struct ConstrainedPriorityQueue<T: Ord> {
     pub max_size: usize,

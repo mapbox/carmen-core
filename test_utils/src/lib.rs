@@ -11,7 +11,8 @@ use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
 
-use std::collections::{HashMap, HashSet};
+use fixedbitset::FixedBitSet;
+use std::collections::{HashMap};
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufWriter, Read, Write};
@@ -30,7 +31,7 @@ pub fn round(value: f64, digits: i32) -> f64 {
 pub fn langarray_to_langfield(array: &[u32]) -> u128 {
     let mut out = 0u128;
     for lang in array {
-        out = out | (1 << *lang as usize);
+        out = out | (1 << *lang) as u128;
     }
     out
 }
@@ -52,7 +53,7 @@ struct PrefixBoundary {
 pub struct TestStore {
     pub store: GridStore,
     pub idx: u16,
-    pub non_overlapping_indexes: HashSet<u16>,
+    pub non_overlapping_indexes: FixedBitSet,
 }
 
 /// Utility to create stores
@@ -63,7 +64,7 @@ pub fn create_store(
     idx: u16,
     zoom: u16,
     type_id: u16,
-    non_overlapping_indexes: HashSet<u16>,
+    non_overlapping_indexes: FixedBitSet,
     coalesce_radius: f64,
 ) -> TestStore {
     let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
@@ -206,7 +207,8 @@ pub struct GridStorePlaceholder {
 struct SubqueryPlaceholder {
     store: GridStorePlaceholder,
     idx: u16,
-    non_overlapping_indexes: HashSet<u16>,
+    #[serde(skip)]
+    non_overlapping_indexes: FixedBitSet,
     weight: f64,
     match_keys: Vec<MatchKeyWithId>,
     mask: u32,
