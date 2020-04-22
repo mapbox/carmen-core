@@ -69,6 +69,11 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
         }
     }
 
+    #[inline(always)]
+    fn is_full(&self) -> bool {
+        self.total_leaves >= self.soft_max
+    }
+
     fn add(&mut self, node: StackableNode<'a, T>) -> Option<ArenaIndex> {
         let max_relev = OrderedFloat(node.max_relev);
         let is_leaf = node.children.len() == 0;
@@ -136,27 +141,42 @@ pub struct StackableTree<'a, T: Borrow<GridStore> + Clone + Debug> {
     pub arena: ArenaManager<'a, T>
 }
 
+struct PhrasematchBin<'a, T: Borrow<GridStore> + Clone + Debug> {
+    phrasematches: Vec<&'a PhrasematchSubquery<T>>,
+    max_relev: OrderedFloat<f64>,
+    max_relev_after_this: OrderedFloat<f64>
+}
+
 pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
     phrasematches: &'a Vec<PhrasematchSubquery<T>>,
 ) -> StackableTree<'a, T> {
     let mut arena: ArenaManager<'a, T> = ArenaManager::new();
 
-    let mut binned_phrasematches: BTreeMap<u16, Vec<&'a PhrasematchSubquery<T>>> = BTreeMap::new();
+    let mut binned_phrasematches: BTreeMap<u16, PhrasematchBin<'a, T>> = BTreeMap::new();
     for phrasematch in phrasematches {
-        binned_phrasematches
+        let mut bin = binned_phrasematches
             .entry(phrasematch.store.borrow().type_id)
-            .or_insert(Vec::new())
-            .push(phrasematch);
+            .or_insert(PhrasematchBin { phrasematches: Vec::new(), max_relev: OrderedFloat(0.0), max_relev_after_this: OrderedFloat(0.0) });
+        if phrasematch.weight > *bin.max_relev {
+            bin.max_relev = OrderedFloat(phrasematch.weight);
+        }
+        bin.phrasematches.push(phrasematch);
     }
-    let binned_phrasematches: Vec<_> = binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
-    let mut counters = (0, 0);
-    let root = binned_stackable(&binned_phrasematches, None, HashSet::new(), 0, 129, 0.0, 0, 0, &mut arena, &mut counters);
-    println!("{:?} {} {}", counters, arena.arena.len(), arena.total_leaves);
+
+    let mut binned_phrasematches: Vec<_> = binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
+    // calculate the max_relev_after_this sums
+    let mut sum_so_far = 0.0;
+    for bin in binned_phrasematches.iter_mut().rev() {
+        bin.max_relev_after_this = OrderedFloat(sum_so_far);
+        sum_so_far = sum_so_far + *bin.max_relev;
+    }
+
+    let root = binned_stackable(&binned_phrasematches, None, HashSet::new(), 0, 129, 0.0, 0, 0, &mut arena);
     StackableTree { root, arena }
 }
 
 fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
-    binned_phrasematches: &'b Vec<Vec<&'a PhrasematchSubquery<T>>>,
+    binned_phrasematches: &'b Vec<PhrasematchBin<'a, T>>,
     current_phrasematch: Option<&'a PhrasematchSubquery<T>>,
     bmask: HashSet<u16>,
     mask: u32,
@@ -164,8 +184,7 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
     relev_so_far: f64,
     zoom: u16,
     start_type_idx: usize,
-    arena: &mut ArenaManager<'a, T>,
-    counters: &mut (usize, usize),
+    arena: &mut ArenaManager<'a, T>
 ) -> StackableNode<'a, T> {
     let mut node = StackableNode {
         phrasematch: current_phrasematch,
@@ -179,16 +198,21 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
 
     for (type_idx, phrasematch_group) in binned_phrasematches.iter().enumerate().skip(start_type_idx)
     {
-        for phrasematch in phrasematch_group.iter() {
+        for phrasematch in phrasematch_group.phrasematches.iter() {
             if (node.mask & phrasematch.mask) == 0
                 && phrasematch.non_overlapping_indexes.contains(&node.idx) == false
             {
+                let target_relev = relev_so_far + phrasematch.weight;
+                let max_possible_relev = target_relev + *phrasematch_group.max_relev_after_this;
+                if arena.is_full() && max_possible_relev < *arena.min_relev {
+                    continue;
+                }
+
                 let target_mask = &phrasematch.mask | node.mask;
                 let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
                 let phrasematch_bmask: HashSet<u16> =
                     phrasematch.non_overlapping_indexes.iter().cloned().collect();
                 target_bmask.extend(&phrasematch_bmask);
-                let target_relev = relev_so_far + phrasematch.weight;
 
                 let child_node = binned_stackable(
                     &binned_phrasematches,
@@ -200,7 +224,6 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
                     phrasematch.store.borrow().zoom,
                     type_idx + 1,
                     arena,
-                    counters
                 );
 
                 let max_relev = child_node.max_relev;
@@ -215,8 +238,6 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
             }
         }
     }
-    counters.0 += 1;
-    if node.children.len() == 0 { counters.1 += 1; }
     node
 }
 /*
