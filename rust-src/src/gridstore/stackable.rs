@@ -72,8 +72,9 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
     fn add(&mut self, node: StackableNode<'a, T>) -> Option<ArenaIndex> {
         let max_relev = OrderedFloat(node.max_relev);
         let is_leaf = node.children.len() == 0;
+        let old_total_leaves = self.total_leaves;
 
-        if self.total_leaves >= self.soft_max && max_relev < self.min_relev {
+        if old_total_leaves >= self.soft_max && max_relev < self.min_relev {
             // we're constrained, and this is worse than our worst, so don't keep it
             None
         } else {
@@ -82,11 +83,13 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
 
             let mut relev_entry = self.relev_map.entry(max_relev).or_insert((0, Vec::new()));
 
-            if is_leaf { relev_entry.0 += 1; }
+            if is_leaf {
+                relev_entry.0 += 1;
+                self.total_leaves += 1;
+            }
             relev_entry.1.push(arena_index);
-            self.total_leaves += 1;
 
-            if self.total_leaves < self.soft_max {
+            if old_total_leaves < self.soft_max {
                 // this was an unconstrained add, so just update min if necessary and move on
                 if max_relev < self.min_relev {
                     self.min_relev = max_relev;
@@ -148,7 +151,7 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
     let binned_phrasematches: Vec<_> = binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
     let mut counters = (0, 0);
     let root = binned_stackable(&binned_phrasematches, None, HashSet::new(), 0, 129, 0.0, 0, 0, &mut arena, &mut counters);
-    println!("{:?} {}", counters, arena.arena.len());
+    println!("{:?} {} {}", counters, arena.arena.len(), arena.total_leaves);
     StackableTree { root, arena }
 }
 
