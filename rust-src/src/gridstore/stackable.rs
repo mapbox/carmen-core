@@ -55,7 +55,7 @@ pub struct ArenaManager<'a, T: Borrow<GridStore> + Clone + Debug> {
     relev_map: HashMap<OrderedFloat<f64>, (usize, Vec<ArenaIndex>)>,
     min_relev: OrderedFloat<f64>,
     total_leaves: usize,
-    soft_max: usize
+    soft_max: usize,
 }
 
 impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
@@ -106,7 +106,8 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
                 if max_relev > self.min_relev {
                     // if we're inserting into a bin other than the worst one, we might be able
                     // to cull the worst one
-                    let min_count = self.relev_map.get(&self.min_relev).expect("must contain min_relev").0;
+                    let min_count =
+                        self.relev_map.get(&self.min_relev).expect("must contain min_relev").0;
                     let total_without_min = self.total_leaves - min_count;
                     if total_without_min >= self.soft_max {
                         // we can make due without the minimum bin
@@ -126,7 +127,8 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
             }
         }
         // pick a new min
-        self.min_relev = self.relev_map.keys().min().map(|min| *min).unwrap_or(OrderedFloat(std::f64::MAX));
+        self.min_relev =
+            self.relev_map.keys().min().map(|min| *min).unwrap_or(OrderedFloat(std::f64::MAX));
     }
 
     #[inline(always)]
@@ -138,13 +140,13 @@ impl<'a, T: Borrow<GridStore> + Clone + Debug> ArenaManager<'a, T> {
 #[derive(Debug, Clone)]
 pub struct StackableTree<'a, T: Borrow<GridStore> + Clone + Debug> {
     pub root: StackableNode<'a, T>,
-    pub arena: ArenaManager<'a, T>
+    pub arena: ArenaManager<'a, T>,
 }
 
 struct PhrasematchBin<'a, T: Borrow<GridStore> + Clone + Debug> {
     phrasematches: Vec<&'a PhrasematchSubquery<T>>,
     max_relev: OrderedFloat<f64>,
-    max_relev_after_this: OrderedFloat<f64>
+    max_relev_after_this: OrderedFloat<f64>,
 }
 
 pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
@@ -154,16 +156,21 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
 
     let mut binned_phrasematches: BTreeMap<u16, PhrasematchBin<'a, T>> = BTreeMap::new();
     for phrasematch in phrasematches {
-        let mut bin = binned_phrasematches
-            .entry(phrasematch.store.borrow().type_id)
-            .or_insert(PhrasematchBin { phrasematches: Vec::new(), max_relev: OrderedFloat(0.0), max_relev_after_this: OrderedFloat(0.0) });
+        let mut bin = binned_phrasematches.entry(phrasematch.store.borrow().type_id).or_insert(
+            PhrasematchBin {
+                phrasematches: Vec::new(),
+                max_relev: OrderedFloat(0.0),
+                max_relev_after_this: OrderedFloat(0.0),
+            },
+        );
         if phrasematch.weight > *bin.max_relev {
             bin.max_relev = OrderedFloat(phrasematch.weight);
         }
         bin.phrasematches.push(phrasematch);
     }
 
-    let mut binned_phrasematches: Vec<_> = binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
+    let mut binned_phrasematches: Vec<_> =
+        binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
     // calculate the max_relev_after_this sums
     let mut sum_so_far = 0.0;
     for bin in binned_phrasematches.iter_mut().rev() {
@@ -171,7 +178,17 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
         sum_so_far = sum_so_far + *bin.max_relev;
     }
 
-    let root = binned_stackable(&binned_phrasematches, None, HashSet::new(), 0, 129, 0.0, 0, 0, &mut arena);
+    let root = binned_stackable(
+        &binned_phrasematches,
+        None,
+        HashSet::new(),
+        0,
+        129,
+        0.0,
+        0,
+        0,
+        &mut arena,
+    );
     StackableTree { root, arena }
 }
 
@@ -184,7 +201,7 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
     relev_so_far: f64,
     zoom: u16,
     start_type_idx: usize,
-    arena: &mut ArenaManager<'a, T>
+    arena: &mut ArenaManager<'a, T>,
 ) -> StackableNode<'a, T> {
     let mut node = StackableNode {
         phrasematch: current_phrasematch,
@@ -196,7 +213,8 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
         zoom: zoom,
     };
 
-    for (type_idx, phrasematch_group) in binned_phrasematches.iter().enumerate().skip(start_type_idx)
+    for (type_idx, phrasematch_group) in
+        binned_phrasematches.iter().enumerate().skip(start_type_idx)
     {
         for phrasematch in phrasematch_group.phrasematches.iter() {
             if (node.mask & phrasematch.mask) == 0
@@ -306,22 +324,55 @@ mod test {
         let phrasematch_results = vec![a1, b1, b2];
 
         let tree = stackable(&phrasematch_results);
-        let a1_children_ids: Vec<u32> = tree.arena.get(tree.root.children[0]).unwrap()
+        let a1_children_ids: Vec<u32> = tree
+            .arena
+            .get(tree.root.children[0])
+            .unwrap()
             .children
             .iter()
-            .map(|node_idx| tree.arena.get(*node_idx).unwrap().phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+            .map(|node_idx| {
+                tree.arena
+                    .get(*node_idx)
+                    .unwrap()
+                    .phrasematch
+                    .as_ref()
+                    .map(|p| p.match_keys[0].id)
+                    .unwrap()
+            })
             .collect();
         assert_eq!(vec![1, 2], a1_children_ids, "a1 can stack with b1 and b2");
-        let b1_children_ids: Vec<u32> = tree.arena.get(tree.root.children[1]).unwrap()
+        let b1_children_ids: Vec<u32> = tree
+            .arena
+            .get(tree.root.children[1])
+            .unwrap()
             .children
             .iter()
-            .map(|node_idx| tree.arena.get(*node_idx).unwrap().phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+            .map(|node_idx| {
+                tree.arena
+                    .get(*node_idx)
+                    .unwrap()
+                    .phrasematch
+                    .as_ref()
+                    .map(|p| p.match_keys[0].id)
+                    .unwrap()
+            })
             .collect();
         assert_eq!(0, b1_children_ids.len(), "b1 cannot stack with b2, same nmask");
-        let b2_children_ids: Vec<u32> = tree.arena.get(tree.root.children[2]).unwrap()
+        let b2_children_ids: Vec<u32> = tree
+            .arena
+            .get(tree.root.children[2])
+            .unwrap()
             .children
             .iter()
-            .map(|node_idx| tree.arena.get(*node_idx).unwrap().phrasematch.as_ref().map(|p| p.match_keys[0].id).unwrap())
+            .map(|node_idx| {
+                tree.arena
+                    .get(*node_idx)
+                    .unwrap()
+                    .phrasematch
+                    .as_ref()
+                    .map(|p| p.match_keys[0].id)
+                    .unwrap()
+            })
             .collect();
         assert_eq!(0, b2_children_ids.len(), "b2 cannot stack with b1, same nmask");
     }
