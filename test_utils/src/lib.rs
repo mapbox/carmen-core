@@ -11,6 +11,7 @@ use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
 
+use fixedbitset::FixedBitSet;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{self, File};
@@ -30,7 +31,7 @@ pub fn round(value: f64, digits: i32) -> f64 {
 pub fn langarray_to_langfield(array: &[u32]) -> u128 {
     let mut out = 0u128;
     for lang in array {
-        out = out | (1 << *lang as usize);
+        out = out | (1 << *lang) as u128;
     }
     out
 }
@@ -52,7 +53,7 @@ struct PrefixBoundary {
 pub struct TestStore {
     pub store: GridStore,
     pub idx: u16,
-    pub non_overlapping_indexes: HashSet<u16>,
+    pub non_overlapping_indexes: FixedBitSet,
 }
 
 /// Utility to create stores
@@ -63,7 +64,7 @@ pub fn create_store(
     idx: u16,
     zoom: u16,
     type_id: u16,
-    non_overlapping_indexes: HashSet<u16>,
+    non_overlapping_indexes: FixedBitSet,
     coalesce_radius: f64,
 ) -> TestStore {
     let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
@@ -206,7 +207,7 @@ pub struct GridStorePlaceholder {
 struct SubqueryPlaceholder {
     store: GridStorePlaceholder,
     idx: u16,
-    non_overlapping_indexes: HashSet<u16>,
+    non_overlapping_indexes: HashSet<u32>,
     weight: f64,
     match_keys: Vec<MatchKeyWithId>,
     mask: u32,
@@ -249,13 +250,18 @@ pub fn prepare_phrasematches(
                                 .unwrap();
                                 Arc::new(gs)
                             });
+                        let mut fbs: FixedBitSet = FixedBitSet::with_capacity(128);
+
+                        for x in placeholder.non_overlapping_indexes.clone() {
+                            fbs.insert(x as usize);
+                        }
                         PhrasematchSubquery {
                             store: store.clone(),
                             weight: placeholder.weight,
                             match_keys: placeholder.match_keys.clone(),
                             mask: placeholder.mask,
                             idx: placeholder.idx,
-                            non_overlapping_indexes: placeholder.non_overlapping_indexes.clone(),
+                            non_overlapping_indexes: fbs,
                         }
                     })
                     .collect();
@@ -303,13 +309,20 @@ pub fn prepare_stackable_phrasematches(
                                 .unwrap();
                                 Arc::new(gs)
                             });
+
+                        let mut fbs: FixedBitSet = FixedBitSet::with_capacity(128);
+
+                        for x in placeholder.non_overlapping_indexes.clone() {
+                            fbs.insert(x as usize);
+                        }
+
                         PhrasematchSubquery {
                             store: store.clone(),
                             weight: placeholder.weight,
                             match_keys: placeholder.match_keys.clone(),
                             mask: placeholder.mask,
                             idx: placeholder.idx,
-                            non_overlapping_indexes: placeholder.non_overlapping_indexes.clone(),
+                            non_overlapping_indexes: fbs,
                         }
                     })
                     .collect();

@@ -796,6 +796,7 @@ mod test {
     use super::*;
     use crate::gridstore::builder::*;
     use crate::gridstore::common::MatchPhrase::Range;
+    use fixedbitset::FixedBitSet;
 
     #[test]
     fn collapse_phrasematches_test() {
@@ -816,7 +817,7 @@ mod test {
         let a1 = PhrasematchSubquery {
             store: &store1,
             idx: 2,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
@@ -828,7 +829,7 @@ mod test {
         let a2 = PhrasematchSubquery {
             store: &store1,
             idx: 2,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {

@@ -15,8 +15,9 @@ pub use store::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fixedbitset::FixedBitSet;
     use once_cell::sync::Lazy;
-    use std::collections::{BTreeMap, HashSet};
+    use std::collections::BTreeMap;
 
     #[test]
     fn combined_test() {
@@ -644,7 +645,7 @@ mod tests {
             let subquery = PhrasematchSubquery {
                 store: reader,
                 idx: 1,
-                non_overlapping_indexes: HashSet::new(),
+                non_overlapping_indexes: FixedBitSet::with_capacity(128),
                 weight: 1.,
                 match_keys: vec![MatchKeyWithId {
                     id: 0,

@@ -1,11 +1,11 @@
 use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
-use std::collections::HashSet;
 
 use crate::gridstore::store::GridStore;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
+use fixedbitset::FixedBitSet;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
@@ -414,7 +414,8 @@ pub struct MatchKeyWithId {
 pub struct PhrasematchSubquery<T: Borrow<GridStore> + Clone> {
     pub store: T,
     pub idx: u16,
-    pub non_overlapping_indexes: HashSet<u16>, // the field formerly known as bmask
+    #[serde(skip_serializing)]
+    pub non_overlapping_indexes: FixedBitSet, // the field formerly known as bmask
     pub weight: f64,
     pub mask: u32,
     pub match_keys: Vec<MatchKeyWithId>,
