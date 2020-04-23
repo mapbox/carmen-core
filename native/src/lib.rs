@@ -9,7 +9,6 @@ use neon_serde::errors::Result as LibResult;
 use serde::Deserialize;
 use owning_ref::OwningHandle;
 use failure::Error;
-use fixedbitset::FixedBitSet;
 
 use std::sync::Arc;
 
