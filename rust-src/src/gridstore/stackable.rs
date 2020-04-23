@@ -91,9 +91,9 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
                 && phrasematches.non_overlapping_indexes.contains(node.idx as usize) == false
             {
                 let target_mask = &phrasematches.mask | node.mask;
-                let target_bmask: FixedBitSet = node.bmask.clone();
+                let mut target_bmask: FixedBitSet = node.bmask.clone();
                 let phrasematch_bmask: FixedBitSet = phrasematches.non_overlapping_indexes.clone();
-                target_bmask.intersection(&phrasematch_bmask);
+                target_bmask.union_with(&phrasematch_bmask);
                 let target_relev = 0.0 + phrasematches.weight;
 
                 node.children.push(binned_stackable(

@@ -10,9 +10,9 @@ use lz4::Decoder;
 use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
-
 use fixedbitset::FixedBitSet;
 use std::collections::{HashMap, HashSet};
+
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufWriter, Read, Write};
@@ -31,7 +31,7 @@ pub fn round(value: f64, digits: i32) -> f64 {
 pub fn langarray_to_langfield(array: &[u32]) -> u128 {
     let mut out = 0u128;
     for lang in array {
-        out = out | (1 << *lang) as u128;
+        out = out | (1 << *lang as usize);
     }
     out
 }
@@ -250,11 +250,8 @@ pub fn prepare_phrasematches(
                                 .unwrap();
                                 Arc::new(gs)
                             });
-                        let mut fbs: FixedBitSet = FixedBitSet::with_capacity(128);
+                        let fbs: FixedBitSet = placeholder.non_overlapping_indexes.clone().into_iter().map(|n| n as usize).collect();
 
-                        for x in placeholder.non_overlapping_indexes.clone() {
-                            fbs.insert(x as usize);
-                        }
                         PhrasematchSubquery {
                             store: store.clone(),
                             weight: placeholder.weight,
@@ -310,11 +307,7 @@ pub fn prepare_stackable_phrasematches(
                                 Arc::new(gs)
                             });
 
-                        let mut fbs: FixedBitSet = FixedBitSet::with_capacity(128);
-
-                        for x in placeholder.non_overlapping_indexes.clone() {
-                            fbs.insert(x as usize);
-                        }
+                        let fbs: FixedBitSet = placeholder.non_overlapping_indexes.clone().into_iter().map(|n| n as usize).collect();
 
                         PhrasematchSubquery {
                             store: store.clone(),

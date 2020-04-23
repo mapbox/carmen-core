@@ -507,23 +507,11 @@ where
             }],
             mask: neon_serde::from_value(cx, mask)?,
             idx: neon_serde::from_value(cx, idx)?,
-            non_overlapping_indexes: vector_to_fixedbitset(non_overlapping_indexes),
+            non_overlapping_indexes: non_overlapping_indexes.into_iter().map(|n| n as usize).collect(),
         };
         phrasematches.push(subq);
     }
     Ok(phrasematches)
-}
-
-pub fn vector_to_fixedbitset(bitset: Vec<u32>) -> FixedBitSet {
-    let mut fbs = FixedBitSet::with_capacity(128);
-    for bit in bitset {
-        if bit == 1 {
-            fbs.insert(1);
-        } else {
-            fbs.insert(0);
-        }
-    }
-    return fbs;
 }
 
 pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
