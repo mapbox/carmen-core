@@ -12,7 +12,7 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 use crate::gridstore::common::*;
-use crate::gridstore::stackable::{stackable, StackableNode};
+use crate::gridstore::stackable::{stackable, StackableNode, StackableTree};
 use crate::gridstore::store::GridStore;
 
 /// Takes a vector of phrasematch subqueries (stack) and match options, gets matching grids, sorts the grids,
@@ -402,20 +402,21 @@ fn penalize_multi_context(context: &mut CoalesceContext) {
 pub const COALESCE_CHUNK_SIZE: usize = 8;
 
 pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
-    stack_tree: &StackableNode<T>,
+    stack_tree: &StackableTree<T>,
     match_opts: &MatchOpts,
 ) -> Result<Vec<CoalesceContext>, Error> {
-    // the "tree" is just a node with no phrasematch; assure that this is the case
-    debug_assert!(stack_tree.phrasematch.is_none(), "no phrasematch on root node");
+    debug_assert!(stack_tree.root.phrasematch.is_none(), "no phrasematch on root node");
 
     let mut contexts: ConstrainedPriorityQueue<CoalesceContext> =
         ConstrainedPriorityQueue::new(MAX_CONTEXTS * 20);
     let mut steps: MinMaxHeap<CoalesceStep<T>> = MinMaxHeap::new();
     let mut data_cache: HashMap<u32, Vec<MatchEntry>> = HashMap::new();
 
-    for node in &stack_tree.children {
-        // push the first set of nodes into the queue
-        steps.push(CoalesceStep::new(&node, None, 0, match_opts));
+    for child_idx in &stack_tree.root.children {
+        if let Some(node) = stack_tree.arena.get(*child_idx) {
+            // push the first set of nodes into the queue
+            steps.push(CoalesceStep::new(&node, None, 0, match_opts));
+        }
     }
 
     while steps.len() > 0 {
@@ -627,13 +628,15 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
                     if state.len() > 0 {
                         let state = Arc::new(state);
-                        for child in step.node.children.iter() {
-                            next_steps.push(CoalesceStep::new(
-                                &child,
-                                Some(state.clone()),
-                                subquery.store.borrow().zoom,
-                                match_opts,
-                            ));
+                        for child_idx in step.node.children.iter() {
+                            if let Some(child) = stack_tree.arena.get(*child_idx) {
+                                next_steps.push(CoalesceStep::new(
+                                    &child,
+                                    Some(state.clone()),
+                                    subquery.store.borrow().zoom,
+                                    match_opts,
+                                ));
+                            }
                         }
                     }
 
