@@ -6,9 +6,9 @@ use std::fmt::Debug;
 use crate::gridstore::common::*;
 use crate::gridstore::store::*;
 
+use fixedbitset::FixedBitSet;
 use generational_arena::{Arena, Index as ArenaIndex};
 use ordered_float::OrderedFloat;
-use fixedbitset::FixedBitSet;
 
 #[derive(Debug, Clone)]
 pub struct StackableNode<'a, T: Borrow<GridStore> + Clone + Debug> {
