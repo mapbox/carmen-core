@@ -1,6 +1,6 @@
 {
   "name": "@mapbox/carmen-core",
-  "version": "0.1.1-constrained-stackable-1",
+  "version": "0.1.1-sort-before-stackable-1",
   "description": "node bindings for carmen-core",
   "main": "index.js",
   "engines": {
