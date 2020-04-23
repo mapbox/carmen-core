@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use core::cmp::Reverse;
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
@@ -170,8 +171,13 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
         bin.phrasematches.push(phrasematch);
     }
 
-    let mut binned_phrasematches: Vec<_> =
-        binned_phrasematches.into_iter().map(|(_k, v)| v).collect();
+    let mut binned_phrasematches: Vec<_> = binned_phrasematches
+        .into_iter()
+        .map(|(_k, mut v)| {
+            v.phrasematches.sort_by_key(|pm| (Reverse(OrderedFloat(pm.weight)), pm.idx));
+            v
+        })
+        .collect();
     // calculate the max_relev_after_this sums
     let mut sum_so_far = 0.0;
     for bin in binned_phrasematches.iter_mut().rev() {
