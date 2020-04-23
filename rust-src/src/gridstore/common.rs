@@ -8,7 +8,7 @@ use failure::Error;
 use fixedbitset::FixedBitSet;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Copy, Clone, Debug)]
 pub enum TypeMarker {
@@ -414,11 +414,18 @@ pub struct MatchKeyWithId {
 pub struct PhrasematchSubquery<T: Borrow<GridStore> + Clone> {
     pub store: T,
     pub idx: u16,
-    #[serde(skip_serializing)]
+    #[serde(serialize_with = "serialize_fixedbitset")]
     pub non_overlapping_indexes: FixedBitSet, // the field formerly known as bmask
     pub weight: f64,
     pub mask: u32,
     pub match_keys: Vec<MatchKeyWithId>,
+}
+
+fn serialize_fixedbitset<S>(bits: &FixedBitSet, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.collect_seq(bits.as_slice().iter())
 }
 
 pub struct ConstrainedPriorityQueue<T: Ord> {
