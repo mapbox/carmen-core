@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use failure::Error;
+use indexmap::map::{Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
@@ -755,13 +756,13 @@ pub fn collapse_phrasematches<T: Borrow<GridStore> + Clone + Debug>(
     phrasematches: Vec<PhrasematchSubquery<T>>,
 ) -> Vec<PhrasematchSubquery<T>> {
     let mut phrasematch_results: Vec<PhrasematchSubquery<T>> = Vec::new();
-    let mut phrasematch_map = HashMap::new();
+    let mut phrasematch_map = IndexMap::new();
     let mut group_hash;
     for phrasematch in phrasematches.into_iter() {
         group_hash = (OrderedFloat(phrasematch.weight), phrasematch.idx, phrasematch.mask);
 
         match phrasematch_map.entry(group_hash) {
-            Entry::Vacant(entry) => {
+            IndexMapEntry::Vacant(entry) => {
                 let pm = PhrasematchSubquery {
                     store: phrasematch.store,
                     idx: phrasematch.idx,
@@ -772,7 +773,7 @@ pub fn collapse_phrasematches<T: Borrow<GridStore> + Clone + Debug>(
                 };
                 entry.insert(pm);
             }
-            Entry::Occupied(mut grouped_phrasematch) => {
+            IndexMapEntry::Occupied(mut grouped_phrasematch) => {
                 grouped_phrasematch.get_mut().match_keys.push(phrasematch.match_keys[0].clone());
             }
         }
