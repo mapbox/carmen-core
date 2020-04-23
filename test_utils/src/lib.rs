@@ -6,11 +6,11 @@ extern crate serde_json;
 use carmen_core::gridstore::*;
 
 use failure::Error;
+use fixedbitset::FixedBitSet;
 use lz4::Decoder;
 use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
-use fixedbitset::FixedBitSet;
 use std::collections::{HashMap, HashSet};
 
 use std::env;
@@ -250,7 +250,12 @@ pub fn prepare_phrasematches(
                                 .unwrap();
                                 Arc::new(gs)
                             });
-                        let fbs: FixedBitSet = placeholder.non_overlapping_indexes.clone().into_iter().map(|n| n as usize).collect();
+                        let fbs: FixedBitSet = placeholder
+                            .non_overlapping_indexes
+                            .clone()
+                            .into_iter()
+                            .map(|n| n as usize)
+                            .collect();
 
                         PhrasematchSubquery {
                             store: store.clone(),
@@ -307,7 +312,12 @@ pub fn prepare_stackable_phrasematches(
                                 Arc::new(gs)
                             });
 
-                        let fbs: FixedBitSet = placeholder.non_overlapping_indexes.clone().into_iter().map(|n| n as usize).collect();
+                        let fbs: FixedBitSet = placeholder
+                            .non_overlapping_indexes
+                            .clone()
+                            .into_iter()
+                            .map(|n| n as usize)
+                            .collect();
 
                         PhrasematchSubquery {
                             store: store.clone(),
