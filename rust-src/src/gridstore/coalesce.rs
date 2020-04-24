@@ -1,8 +1,7 @@
 use std::borrow::Borrow;
 use std::cmp::{Ordering, Reverse};
-use std::collections::btree_map::Entry as BTreeMapEntry;
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -681,7 +680,7 @@ fn tree_coalesce_single<T: Borrow<GridStore> + Clone, U: Iterator<Item = MatchEn
     let mut min_scoredist = std::f64::MAX;
     let mut feature_count: usize = 0;
 
-    let mut coalesced: BTreeMap<u32, CoalesceEntry> = BTreeMap::new();
+    let mut coalesced: HashMap<u32, CoalesceEntry> = HashMap::new();
 
     for grid in grids {
         let coalesce_entry = grid_to_coalesce_entry(&grid, &subquery, match_opts, phrasematch_id);
@@ -717,14 +716,14 @@ fn tree_coalesce_single<T: Borrow<GridStore> + Clone, U: Iterator<Item = MatchEn
 
         // If it's the same feature as one that's been added before, but a higher scoredist, update the entry
         match coalesced.entry(current_id) {
-            BTreeMapEntry::Occupied(mut already_coalesced) => {
+            Entry::Occupied(mut already_coalesced) => {
                 if current_scoredist > already_coalesced.get().scoredist
                     && current_relev >= already_coalesced.get().grid_entry.relev
                 {
                     already_coalesced.insert(coalesce_entry);
                 }
             }
-            BTreeMapEntry::Vacant(entry) => {
+            Entry::Vacant(entry) => {
                 entry.insert(coalesce_entry);
             }
         }
@@ -743,10 +742,11 @@ fn tree_coalesce_single<T: Borrow<GridStore> + Clone, U: Iterator<Item = MatchEn
         previous_scoredist = current_scoredist;
     }
 
-    let contexts = coalesced.into_iter().map(|(_, entry)| CoalesceContext {
-        entries: vec![entry.clone()],
-        mask: entry.mask,
-        relev: entry.grid_entry.relev,
+    let mut ids: Vec<_> = coalesced.keys().cloned().collect();
+    ids.sort();
+    let contexts = ids.into_iter().map(move |id| {
+        let entry = coalesced.remove(&id).expect("hashmap must contain key");
+        CoalesceContext { mask: entry.mask, relev: entry.grid_entry.relev, entries: vec![entry] }
     });
 
     Ok(contexts)
