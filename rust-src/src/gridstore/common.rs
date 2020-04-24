@@ -425,7 +425,7 @@ fn serialize_fixedbitset<S>(bits: &FixedBitSet, serializer: S) -> Result<S::Ok, 
 where
     S: Serializer,
 {
-    serializer.collect_seq(bits.as_slice().iter())
+    serializer.collect_seq(bits.ones())
 }
 
 pub struct ConstrainedPriorityQueue<T: Ord> {
