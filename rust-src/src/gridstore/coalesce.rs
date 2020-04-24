@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cmp::{Ordering, Reverse};
-use std::collections::hash_map::Entry;
 use std::collections::btree_map::Entry as BTreeMapEntry;
+use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
