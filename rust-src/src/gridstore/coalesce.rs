@@ -662,7 +662,11 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     // - there's a relevance penalty for ascending vs. descending stuff for some reason... maybe
     //   we just shouldn't do that anymore though?
 
-    Ok(contexts.into_vec_desc())
+    let mut contexts = contexts.into_vec_desc();
+    // if the same ID occurs more than once, just keep the first (highest-relevance) one
+    let mut unique_ids: HashSet<u64> = HashSet::with_capacity(contexts.len());
+    contexts.retain(|context| unique_ids.insert(context.entries[0].tmp_id.into()));
+    Ok(contexts)
 }
 
 fn tree_coalesce_single<T: Borrow<GridStore> + Clone, U: Iterator<Item = MatchEntry>>(
