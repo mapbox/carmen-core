@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 use std::borrow::Borrow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 
 use crate::gridstore::common::*;
 use crate::gridstore::store::*;
 
+use fixedbitset::FixedBitSet;
 use generational_arena::{Arena, Index as ArenaIndex};
 use ordered_float::OrderedFloat;
 
@@ -13,7 +14,7 @@ use ordered_float::OrderedFloat;
 pub struct StackableNode<'a, T: Borrow<GridStore> + Clone + Debug> {
     pub phrasematch: Option<&'a PhrasematchSubquery<T>>,
     pub children: Vec<ArenaIndex>,
-    pub bmask: HashSet<u16>,
+    pub bmask: FixedBitSet,
     pub mask: u32,
     pub idx: u16,
     pub max_relev: f64,
@@ -181,7 +182,7 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
     let root = binned_stackable(
         &binned_phrasematches,
         None,
-        HashSet::new(),
+        FixedBitSet::with_capacity(128),
         0,
         129,
         0.0,
@@ -195,7 +196,7 @@ pub fn stackable<'a, T: Borrow<GridStore> + Clone + Debug>(
 fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
     binned_phrasematches: &'b Vec<PhrasematchBin<'a, T>>,
     current_phrasematch: Option<&'a PhrasematchSubquery<T>>,
-    bmask: HashSet<u16>,
+    bmask: FixedBitSet,
     mask: u32,
     idx: u16,
     relev_so_far: f64,
@@ -218,7 +219,7 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
     {
         for phrasematch in phrasematch_group.phrasematches.iter() {
             if (node.mask & phrasematch.mask) == 0
-                && phrasematch.non_overlapping_indexes.contains(&node.idx) == false
+                && phrasematch.non_overlapping_indexes.contains(node.idx as usize) == false
             {
                 let target_relev = relev_so_far + phrasematch.weight;
                 let max_possible_relev = target_relev + *phrasematch_group.max_relev_after_this;
@@ -227,10 +228,8 @@ fn binned_stackable<'b, 'a: 'b, T: Borrow<GridStore> + Clone + Debug>(
                 }
 
                 let target_mask = &phrasematch.mask | node.mask;
-                let mut target_bmask: HashSet<u16> = node.bmask.iter().cloned().collect();
-                let phrasematch_bmask: HashSet<u16> =
-                    phrasematch.non_overlapping_indexes.iter().cloned().collect();
-                target_bmask.extend(&phrasematch_bmask);
+                let mut target_bmask: FixedBitSet = node.bmask.clone();
+                target_bmask.union_with(&phrasematch.non_overlapping_indexes);
 
                 let child_node = binned_stackable(
                     &binned_phrasematches,
@@ -288,7 +287,7 @@ mod test {
         let a1 = PhrasematchSubquery {
             store: &store1,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -300,7 +299,7 @@ mod test {
         let b1 = PhrasematchSubquery {
             store: &store2,
             idx: 2,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -312,7 +311,7 @@ mod test {
         let b2 = PhrasematchSubquery {
             store: &store2,
             idx: 2,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -392,17 +391,17 @@ mod test {
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
         let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
-        let mut a1_bmask: HashSet<u16> = HashSet::new();
+        let mut a1_bmask: FixedBitSet = FixedBitSet::with_capacity(128);
         a1_bmask.insert(0);
         a1_bmask.insert(1);
-        let mut b1_bmask: HashSet<u16> = HashSet::new();
+        let mut b1_bmask: FixedBitSet = FixedBitSet::with_capacity(128);
         b1_bmask.insert(1);
         b1_bmask.insert(0);
 
         let a1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -414,7 +413,7 @@ mod test {
         let b1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -449,7 +448,7 @@ mod test {
         let a1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -461,7 +460,7 @@ mod test {
         let b1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -495,7 +494,7 @@ mod test {
         let a1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
@@ -507,7 +506,7 @@ mod test {
         let b1 = PhrasematchSubquery {
             store: &store,
             idx: 1,
-            non_overlapping_indexes: HashSet::new(),
+            non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },

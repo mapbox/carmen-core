@@ -20,4 +20,5 @@ neon-serde = "0.1.1"
 serde = "1.*"
 failure = "0.1.5"
 owning_ref = "0.4"
+fixedbitset = "0.3.0"
 carmen-core = { path = "../" }

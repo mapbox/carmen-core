@@ -7,7 +7,6 @@ use neon::prelude::*;
 use neon::{class_definition, declare_types, impl_managed, register_module};
 use neon_serde::errors::Result as LibResult;
 use serde::Deserialize;
-use std::collections::HashSet;
 use owning_ref::OwningHandle;
 use failure::Error;
 
@@ -495,7 +494,8 @@ where
 
         let idx = js_phrasematch.get(cx, "idx")?;
 
-        let non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
+        let js_non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
+        let non_overlapping_indexes: Vec<u32> = neon_serde::from_value(cx, js_non_overlapping_indexes)?;
 
         let subq = PhrasematchSubquery {
             store: gridstore,
@@ -506,7 +506,7 @@ where
             }],
             mask: neon_serde::from_value(cx, mask)?,
             idx: neon_serde::from_value(cx, idx)?,
-            non_overlapping_indexes: neon_serde::from_value(cx, non_overlapping_indexes)?,
+            non_overlapping_indexes: non_overlapping_indexes.into_iter().map(|n| n as usize).collect(),
         };
         phrasematches.push(subq);
     }
