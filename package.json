@@ -1,6 +1,6 @@
 {
   "name": "@mapbox/carmen-core",
-  "version": "0.1.1-treeify-stacks-maybe-like-12",
+  "version": "0.1.1-dedup-coalesce-2",
   "description": "node bindings for carmen-core",
   "main": "index.js",
   "engines": {
