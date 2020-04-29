@@ -484,13 +484,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
                         ConstrainedPriorityQueue::new(MAX_CONTEXTS);
 
-                    let grids = key_step.subquery.store.borrow().streaming_get_matching(
-                        &key_step.key,
-                        &key_step.match_opts,
-                        // double to give us some sorting wiggle room
-                        bigger_max,
-                    )?;
-
                     let bit_count = count_bits(key_step.subquery.mask);
 
                     let start = match key_step.key.match_phrase {
@@ -507,6 +500,13 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     if bit_count == 1 && range > 1 {
                         count.inc();
                     }
+
+                    let grids = key_step.subquery.store.borrow().streaming_get_matching(
+                        &key_step.key,
+                        &key_step.match_opts,
+                        // double to give us some sorting wiggle room
+                        bigger_max,
+                    )?;
 
                     let coalesced = tree_coalesce_single(
                         &key_step.subquery,
