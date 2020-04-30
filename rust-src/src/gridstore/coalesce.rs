@@ -825,6 +825,7 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
@@ -837,6 +838,7 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
             }],

@@ -407,6 +407,7 @@ impl Eq for CoalesceContext {}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MatchKeyWithId {
     pub key: MatchKey,
+    pub nearby_only: bool,
     pub id: u32,
 }
 

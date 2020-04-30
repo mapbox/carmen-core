@@ -296,6 +296,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
             }],
@@ -308,6 +309,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
@@ -320,6 +322,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
             }],
@@ -410,6 +413,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
             }],
@@ -422,6 +426,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
@@ -457,6 +462,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
             }],
@@ -469,6 +475,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
@@ -503,6 +510,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
             }],
@@ -515,6 +523,7 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
