@@ -424,7 +424,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         // as long as there's still work to do, we'll execute it a chunk at a time, peeling off
         // the next few best nodes, and executing on them in parallel
         let mut step_chunk = Vec::with_capacity(COALESCE_CHUNK_SIZE);
-        let mut keys = Vec::new();
+        let mut keys = HashMap::new();
         for _i in 0..COALESCE_CHUNK_SIZE {
             if let Some(step) = steps.pop_max() {
                 // if we've already gotten as many items as we're going to return, only keep processing
@@ -449,7 +449,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                 for key_group in subquery.match_keys.iter() {
                     if is_single || !data_cache.contains_key(&key_group.id) {
-                        keys.push(KeyFetchStep {
+                        keys.entry((key_group.id, is_single)).or_insert_with(|| KeyFetchStep {
                             key_id: key_group.id,
                             subquery: (*subquery).clone(),
                             key: key_group.key.clone(),
@@ -469,7 +469,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         // just do the whole operation)
         let key_data: Vec<Result<_, Error>> = keys
             .into_par_iter()
-            .map(|key_step| {
+            .map(|(_, key_step)| {
                 if key_step.is_single {
                     // this is a first-level node with no children, so short-circuit to a single-coalesce
                     // stategy
