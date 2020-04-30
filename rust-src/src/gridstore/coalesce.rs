@@ -449,11 +449,17 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                 for key_group in subquery.match_keys.iter() {
                     if is_single || !data_cache.contains_key(&key_group.id) {
+                        let match_opts = if key_group.nearby_only {
+                            step.match_opts.with_nearby_only()
+                        } else {
+                            step.match_opts.clone()
+                        };
+
                         keys.entry((key_group.id, is_single)).or_insert_with(|| KeyFetchStep {
                             key_id: key_group.id,
                             subquery: (*subquery).clone(),
                             key: key_group.key.clone(),
-                            match_opts: step.match_opts.clone(),
+                            match_opts: match_opts,
                             is_single,
                         });
                     }

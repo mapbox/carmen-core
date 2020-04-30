@@ -111,6 +111,9 @@ impl Default for MatchOpts {
     }
 }
 
+pub const EARTH_CIRC_IN_MILES: f64 = 24901.0;
+pub const NEARBY_RADIUS: f64 = 25.0;
+
 impl MatchOpts {
     pub fn adjust_to_zoom(&self, target_z: u16) -> MatchOpts {
         if self.zoom == target_z {
@@ -173,6 +176,39 @@ impl MatchOpts {
 
             MatchOpts { zoom: target_z, proximity: adjusted_proximity, bbox: adjusted_bbox }
         }
+    }
+
+    pub fn with_nearby_only(&self) -> MatchOpts {
+        let mut constrained = self.clone();
+        let prox = if let Some(prox) = constrained.proximity {
+            prox.clone()
+        } else {
+            return constrained;
+        };
+
+        let miles_per_tile = EARTH_CIRC_IN_MILES / ((1 << constrained.zoom) as f64);
+        let padding = (NEARBY_RADIUS / miles_per_tile).ceil() as u16;
+
+        let mut new_box: [u16; 4] = [
+            if prox[0] < padding { 0 } else { prox[0] - padding }, // prevent overflows because this is unsigned
+            if prox[1] < padding { 0 } else { prox[1] - padding }, // ditto
+            prox[0] + padding,
+            prox[1] + padding,
+        ];
+
+        if let Some(old_box) = constrained.bbox {
+            new_box = [
+                std::cmp::max(old_box[0], new_box[0]),
+                std::cmp::max(old_box[1], new_box[1]),
+                std::cmp::min(old_box[2], new_box[2]),
+                std::cmp::min(old_box[3], new_box[3]),
+            ]
+        } else {
+            println!("{:?} {:?}", prox, new_box);
+        }
+
+        constrained.bbox = Some(new_box);
+        constrained
     }
 }
 
