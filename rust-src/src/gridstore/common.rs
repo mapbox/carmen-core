@@ -203,8 +203,6 @@ impl MatchOpts {
                 std::cmp::min(old_box[2], new_box[2]),
                 std::cmp::min(old_box[3], new_box[3]),
             ]
-        } else {
-            println!("{:?} {:?}", prox, new_box);
         }
 
         constrained.bbox = Some(new_box);
@@ -352,6 +350,36 @@ mod tests {
             MATCH_OPTS_BBOX.5.adjust_to_zoom(4).bbox.unwrap(),
             [3, 1, 4, 2],
             "Multi-tile parent zoomed in one zoom level includes all the higher-zoom tiles"
+        );
+    }
+
+    #[test]
+    fn nearby_only() {
+        let opts = matchopts_proximity_generator([100, 100], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([83, 83, 117, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+
+        let opts = matchopts_proximity_generator([100, 100], 6);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([99, 99, 101, 101]), proximity: Some([100, 100]), zoom: 6 }
+        );
+
+        // truncate at the antemeridian
+        let opts = matchopts_proximity_generator([5, 5], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([0, 0, 22, 22]), proximity: Some([5, 5]), zoom: 14 }
+        );
+
+        // test interaction between existing bbox and limiter
+        let mut opts = matchopts_proximity_generator([100, 100], 14);
+        opts.bbox = Some([90, 70, 115, 180]);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([90, 83, 115, 117]), proximity: Some([100, 100]), zoom: 14 }
         );
     }
 }
