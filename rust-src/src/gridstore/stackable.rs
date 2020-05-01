@@ -23,7 +23,7 @@ pub struct StackableNode<'a, T: Borrow<GridStore> + Clone + Debug> {
 }
 
 impl<'a, T: Borrow<GridStore> + Clone + Debug> StackableNode<'a, T> {
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.children.len() == 0
     }
 }
@@ -287,8 +287,10 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
-        let store2 = GridStore::new_with_options(directory.path(), 14, 2, 200.).unwrap();
+        let store1 =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
+        let store2 =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 2, 200.).unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,
@@ -396,7 +398,8 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
+        let store =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
         let mut a1_bmask: FixedBitSet = FixedBitSet::with_capacity(128);
         a1_bmask.insert(0);
         a1_bmask.insert(1);
@@ -449,7 +452,8 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
+        let store =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,
@@ -495,7 +499,8 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
+        let store =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,

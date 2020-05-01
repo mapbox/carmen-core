@@ -342,6 +342,7 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
     match_opts: MatchOpts,
+    relev_so_far: f64,
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
@@ -350,6 +351,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         prev_state: Option<Arc<TreeCoalesceState>>,
         prev_zoom: u16,
         match_opts: &MatchOpts,
+        relev_so_far: f64,
     ) -> CoalesceStep<'a, T> {
         let subquery = node.phrasematch.expect("phrasematch required");
         let match_opts = if match_opts.zoom == subquery.store.borrow().zoom {
@@ -357,7 +359,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts }
+        CoalesceStep { node, prev_state, prev_zoom, match_opts, relev_so_far }
     }
 }
 
@@ -418,7 +420,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
             // push the first set of nodes into the queue
-            steps.push(CoalesceStep::new(&node, None, 0, match_opts));
+            steps.push(CoalesceStep::new(&node, None, 0, match_opts, 0.0));
         }
     }
 
@@ -664,13 +666,16 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
                     if state.len() > 0 {
                         let state = Arc::new(state);
+                        let mut relev_so_far = 0.0;
                         for child_idx in step.node.children.iter() {
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
+                                relev_so_far += child.phrasematch.expect("pm").weight;
                                 next_steps.push(CoalesceStep::new(
                                     &child,
                                     Some(state.clone()),
                                     subquery.store.borrow().zoom,
                                     match_opts,
+                                    relev_so_far
                                 ));
                             }
                         }
@@ -685,12 +690,21 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             for context in phrasematch_contexts {
                 contexts.push(context);
             }
+
             for step in next_steps {
+                let step_relev =
+                    step.relev_so_far + step.node.phrasematch.expect("require phrasematch").weight;
+                if step.node.is_leaf()
+                    && step.node.phrasematch.unwrap().store.borrow().is_slow.is_some()
+                    && count.get() > 1
+                    && step_relev == (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
+                {
+                    continue;
+                }
                 steps.push(step);
             }
         }
     }
-    println!("count: {:?}", count.get());
 
     // other stuff that ought to happen here:
     // - deduplication? if we have the same mask, same stack, better relevance, we should prefer it
@@ -864,7 +878,8 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
+        let store1 =
+            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,

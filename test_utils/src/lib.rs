@@ -74,8 +74,14 @@ pub fn create_store(
     }
     builder.finish().unwrap();
     TestStore {
-        store: GridStore::new_with_options(directory.path(), zoom, type_id, coalesce_radius)
-            .unwrap(),
+        store: GridStore::new_with_options(
+            directory.path(),
+            Option::default(),
+            zoom,
+            type_id,
+            coalesce_radius,
+        )
+        .unwrap(),
         idx,
         non_overlapping_indexes,
     }
@@ -243,6 +249,7 @@ pub fn prepare_phrasematches(
                                 let store_path = ensure_store(&store_name);
                                 let gs = GridStore::new_with_options(
                                     store_path,
+                                    Option::default(),
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
@@ -304,6 +311,7 @@ pub fn prepare_stackable_phrasematches(
                                 let store_path = ensure_store(&store_name);
                                 let gs = GridStore::new_with_options(
                                     store_path,
+                                    Option::default(),
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
