@@ -675,7 +675,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     Some(state.clone()),
                                     subquery.store.borrow().zoom,
                                     match_opts,
-                                    relev_so_far
+                                    relev_so_far,
                                 ));
                             }
                         }
@@ -697,7 +697,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                 if step.node.is_leaf()
                     && step.node.phrasematch.unwrap().store.borrow().is_slow.is_some()
                     && count.get() > 1
-                    && step_relev == (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
+                    && step_relev
+                        == (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
                 {
                     continue;
                 }
