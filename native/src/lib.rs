@@ -285,7 +285,7 @@ declare_types! {
 
                     GridStore::new_with_options(
                         filename,
-                        Some(opts.is_slow),
+                        opts.is_slow,
                         opts.zoom,
                         opts.type_id,
                         opts.coalesce_radius
