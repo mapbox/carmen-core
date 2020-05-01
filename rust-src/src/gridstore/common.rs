@@ -443,6 +443,7 @@ impl Eq for CoalesceContext {}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MatchKeyWithId {
     pub key: MatchKey,
+    #[serde(default)]
     pub nearby_only: bool,
     pub id: u32,
 }
