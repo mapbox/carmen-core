@@ -576,7 +576,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         let chunk_results: Vec<Result<(Vec<CoalesceContext>, Vec<CoalesceStep<'_, T>>), Error>> =
             step_chunk
                 .into_par_iter()
-                .map(|step| {
+                .map(|mut step| {
                     let subquery = step
                         .node
                         .phrasematch
@@ -618,6 +618,9 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                                         new_context.mask = new_context.mask | subquery.mask;
                                         new_context.relev += entry.grid_entry.relev;
+                                        if new_context.relev > step.relev_so_far {
+                                            step.relev_so_far = new_context.relev;
+                                        }
 
                                         let mut out_context = new_context.clone();
                                         penalize_multi_context(&mut out_context);
@@ -649,6 +652,10 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     relev: entry.grid_entry.relev,
                                     entries: vec![entry],
                                 };
+
+                                if context.relev > step.relev_so_far {
+                                    step.relev_so_far = context.relev;
+                                }
 
                                 let mut out_context = context.clone();
                                 penalize_multi_context(&mut out_context);
@@ -692,13 +699,32 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             }
 
             for step in next_steps {
+                let mut counter = 0;
+                for key in &step.node.phrasematch.expect("require phrasematch").match_keys {
+                    let start = match key.key.match_phrase {
+                        MatchPhrase::Exact(phrase_id) => phrase_id,
+                        MatchPhrase::Range { start, .. } => start,
+                    };
+
+                    let end = match key.key.match_phrase {
+                        MatchPhrase::Exact(phrase_id) => phrase_id,
+                        MatchPhrase::Range { start: _, end } => end,
+                    };
+
+                    let range = end - start;
+                    if range > 1 {
+                        counter = 1;
+                        break;
+                    }
+                }
                 let step_relev =
                     step.relev_so_far + step.node.phrasematch.expect("require phrasematch").weight;
                 if step.node.is_leaf()
-                    && step.node.phrasematch.unwrap().store.borrow().is_slow.is_some()
-                    && count.get() > 1
+                    && step.node.zoom == 14
                     && step_relev
-                        == (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
+                        <= (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
+                    && counter == 1
+                    && count_bits(step.node.phrasematch.expect("expect pm").mask) == 1
                 {
                     continue;
                 }
