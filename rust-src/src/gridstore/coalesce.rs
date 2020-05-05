@@ -13,7 +13,7 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 use crate::gridstore::common::*;
-use crate::gridstore::spatial::bboxes_intersect;
+use crate::gridstore::spatial::{adjust_bbox_zoom, bboxes_intersect};
 use crate::gridstore::stackable::{stackable, StackableNode, StackableTree};
 use crate::gridstore::store::GridStore;
 
@@ -341,7 +341,6 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     node: &'a StackableNode<'a, T>,
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
-    prev_bbox: [u16; 4],
     match_opts: MatchOpts,
 }
 
@@ -350,7 +349,6 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         node: &'a StackableNode<'a, T>,
         prev_state: Option<Arc<TreeCoalesceState>>,
         prev_zoom: u16,
-        prev_bbox: [u16; 4],
         match_opts: &MatchOpts,
     ) -> CoalesceStep<'a, T> {
         let subquery = node.phrasematch.expect("phrasematch required");
@@ -359,7 +357,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, prev_bbox, match_opts }
+        CoalesceStep { node, prev_state, prev_zoom, match_opts }
     }
 }
 
@@ -419,7 +417,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
             // push the first set of nodes into the queue
-            steps.push(CoalesceStep::new(&node, None, 0, [0, 0, 0, 0], match_opts));
+            steps.push(CoalesceStep::new(&node, None, 0, match_opts));
         }
     }
 
@@ -685,7 +683,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     &child,
                                     Some(state.clone()),
                                     current_zoom,
-                                    state_bbox.clone(),
                                     match_opts,
                                 ));
                             }
@@ -852,6 +849,8 @@ mod test {
     use super::*;
     use crate::gridstore::builder::*;
     use crate::gridstore::common::MatchPhrase::Range;
+    use crate::gridstore::spatial::global_bbox_for_zoom;
+
     use fixedbitset::FixedBitSet;
 
     #[test]
@@ -868,7 +867,9 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
+        let store1 =
+            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
+                .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,

@@ -74,8 +74,14 @@ pub fn create_store(
     }
     builder.finish().unwrap();
     TestStore {
-        store: GridStore::new_with_options(directory.path(), zoom, type_id, coalesce_radius)
-            .unwrap(),
+        store: GridStore::new_with_options(
+            directory.path(),
+            zoom,
+            type_id,
+            coalesce_radius,
+            global_bbox_for_zoom(zoom),
+        )
+        .unwrap(),
         idx,
         non_overlapping_indexes,
     }
@@ -246,6 +252,7 @@ pub fn prepare_phrasematches(
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
+                                    global_bbox_for_zoom(placeholder.store.zoom),
                                 )
                                 .unwrap();
                                 Arc::new(gs)
@@ -307,6 +314,7 @@ pub fn prepare_stackable_phrasematches(
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
+                                    global_bbox_for_zoom(placeholder.store.zoom),
                                 )
                                 .unwrap();
                                 Arc::new(gs)
