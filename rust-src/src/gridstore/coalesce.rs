@@ -5,7 +5,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use atomic_counter::AtomicCounter;
 use failure::Error;
 use indexmap::map::{Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
@@ -409,7 +408,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     stack_tree: &StackableTree<T>,
     match_opts: &MatchOpts,
 ) -> Result<Vec<CoalesceContext>, Error> {
-    let count: atomic_counter::RelaxedCounter = atomic_counter::RelaxedCounter::new(0);
     debug_assert!(stack_tree.root.phrasematch.is_none(), "no phrasematch on root node");
 
     let mut contexts: ConstrainedPriorityQueue<CoalesceContext> =
@@ -486,23 +484,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
                         ConstrainedPriorityQueue::new(MAX_CONTEXTS);
 
-                    let bit_count = count_bits(key_step.subquery.mask);
-
-                    let start = match key_step.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start, .. } => start,
-                    };
-
-                    let end = match key_step.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start: _, end } => end,
-                    };
-
-                    let range = end - start;
-                    if bit_count == 1 && range > 1 {
-                        count.inc();
-                    }
-
                     let grids = key_step.subquery.store.borrow().streaming_get_matching(
                         &key_step.key,
                         &key_step.match_opts,
@@ -523,23 +504,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     Ok(KeyFetchResult::Single(step_contexts))
                 } else {
-                    let bit_count = count_bits(key_step.subquery.mask);
-
-                    let start = match key_step.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start, .. } => start,
-                    };
-
-                    let end = match key_step.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start: _, end } => end,
-                    };
-
-                    let range = end - start;
-                    if bit_count == 1 && range > 1 {
-                        count.inc();
-                    }
-
                     let data: Vec<_> = key_step
                         .subquery
                         .store
@@ -717,12 +681,10 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         break;
                     }
                 }
-                let step_relev =
-                    step.relev_so_far + step.node.phrasematch.expect("require phrasematch").weight;
                 if step.node.is_leaf()
                     && step.node.zoom == 14
-                    && step.relev_so_far.min(1.0)
-                        <= contexts.peek_max().expect("contexts can't be empty").relev
+                    && step.relev_so_far <= contexts.peek_max().expect("contexts can't be empty").relev
+                    && counter == 1
                     && count_bits(step.node.phrasematch.expect("expect pm").mask) == 1
                 {
                     continue;
