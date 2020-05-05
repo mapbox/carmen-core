@@ -619,7 +619,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                         new_context.mask = new_context.mask | subquery.mask;
                                         new_context.relev += entry.grid_entry.relev;
                                         if new_context.relev > step.relev_so_far {
-                                            step.relev_so_far = new_context.relev;
+                                            step.relev_so_far = new_context.relev
+                                                + step.node.phrasematch.expect("pm").weight;
                                         }
 
                                         let mut out_context = new_context.clone();
@@ -654,7 +655,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 };
 
                                 if context.relev > step.relev_so_far {
-                                    step.relev_so_far = context.relev;
+                                    step.relev_so_far =
+                                        context.relev + step.node.phrasematch.expect("pm").weight;
                                 }
 
                                 let mut out_context = context.clone();
@@ -673,16 +675,14 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
                     if state.len() > 0 {
                         let state = Arc::new(state);
-                        let mut relev_so_far = 0.0;
                         for child_idx in step.node.children.iter() {
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
-                                relev_so_far += child.phrasematch.expect("pm").weight;
                                 next_steps.push(CoalesceStep::new(
                                     &child,
                                     Some(state.clone()),
                                     subquery.store.borrow().zoom,
                                     match_opts,
-                                    relev_so_far,
+                                    step.relev_so_far,
                                 ));
                             }
                         }
@@ -721,9 +721,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     step.relev_so_far + step.node.phrasematch.expect("require phrasematch").weight;
                 if step.node.is_leaf()
                     && step.node.zoom == 14
-                    && step_relev
-                        <= (0.5 * contexts.peek_max().expect("contexts can't be empty").relev)
-                    && counter == 1
+                    && step.relev_so_far.min(1.0)
+                        <= contexts.peek_max().expect("contexts can't be empty").relev
                     && count_bits(step.node.phrasematch.expect("expect pm").mask) == 1
                 {
                     continue;
