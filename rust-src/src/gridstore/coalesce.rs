@@ -13,6 +13,7 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 use crate::gridstore::common::*;
+use crate::gridstore::spatial::bboxes_intersect;
 use crate::gridstore::stackable::{stackable, StackableNode, StackableTree};
 use crate::gridstore::store::GridStore;
 
@@ -340,6 +341,7 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     node: &'a StackableNode<'a, T>,
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
+    prev_bbox: [u16; 4],
     match_opts: MatchOpts,
 }
 
@@ -348,6 +350,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         node: &'a StackableNode<'a, T>,
         prev_state: Option<Arc<TreeCoalesceState>>,
         prev_zoom: u16,
+        prev_bbox: [u16; 4],
         match_opts: &MatchOpts,
     ) -> CoalesceStep<'a, T> {
         let subquery = node.phrasematch.expect("phrasematch required");
@@ -356,7 +359,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts }
+        CoalesceStep { node, prev_state, prev_zoom, prev_bbox, match_opts }
     }
 }
 
@@ -416,7 +419,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
             // push the first set of nodes into the queue
-            steps.push(CoalesceStep::new(&node, None, 0, match_opts));
+            steps.push(CoalesceStep::new(&node, None, 0, [0, 0, 0, 0], match_opts));
         }
     }
 
@@ -559,6 +562,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let scale_factor: u16 = 1 << (subquery.store.borrow().zoom - step.prev_zoom);
 
                     let mut state: TreeCoalesceState = TreeCoalesceState::new();
+                    let mut state_bbox: [u16; 4] = [u16::MAX, u16::MAX, 0, 0];
 
                     for key_group in subquery.match_keys.iter() {
                         let grids = data_cache
@@ -601,6 +605,19 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                                 .entry((grid.grid_entry.x, grid.grid_entry.y))
                                                 .or_insert_with(|| vec![]);
                                             state_vec.push(new_context);
+
+                                            if grid.grid_entry.x < state_bbox[0] {
+                                                state_bbox[0] = grid.grid_entry.x;
+                                            }
+                                            if grid.grid_entry.y < state_bbox[1] {
+                                                state_bbox[1] = grid.grid_entry.y;
+                                            }
+                                            if grid.grid_entry.x > state_bbox[2] {
+                                                state_bbox[2] = grid.grid_entry.x;
+                                            }
+                                            if grid.grid_entry.y > state_bbox[3] {
+                                                state_bbox[3] = grid.grid_entry.y;
+                                            }
                                         }
                                     }
                                 }
@@ -629,6 +646,19 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     .entry((grid.grid_entry.x, grid.grid_entry.y))
                                     .or_insert_with(|| vec![]);
                                 state_vec.push(context);
+
+                                if grid.grid_entry.x < state_bbox[0] {
+                                    state_bbox[0] = grid.grid_entry.x;
+                                }
+                                if grid.grid_entry.y < state_bbox[1] {
+                                    state_bbox[1] = grid.grid_entry.y;
+                                }
+                                if grid.grid_entry.x > state_bbox[2] {
+                                    state_bbox[2] = grid.grid_entry.x;
+                                }
+                                if grid.grid_entry.y > state_bbox[3] {
+                                    state_bbox[3] = grid.grid_entry.y;
+                                }
                             }
                         }
                         phrasematch_contexts.extend(step_contexts.into_iter());
@@ -637,12 +667,25 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
                     if state.len() > 0 {
                         let state = Arc::new(state);
+                        let current_zoom = subquery.store.borrow().zoom;
                         for child_idx in step.node.children.iter() {
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
+                                let child_zoom = child.phrasematch.unwrap().store.borrow().zoom;
+                                let zoomed_bbox = if child_zoom == current_zoom {
+                                    state_bbox
+                                } else {
+                                    adjust_bbox_zoom(state_bbox, current_zoom, child_zoom)
+                                };
+                                let child_bbox = child.phrasematch.unwrap().store.borrow().bbox;
+                                //println!("{:?} {:?} {:?}", child_bbox, zoomed_bbox, bboxes_intersect(child_bbox, zoomed_bbox));
+                                if !bboxes_intersect(child_bbox, zoomed_bbox) {
+                                    continue;
+                                }
                                 next_steps.push(CoalesceStep::new(
                                     &child,
                                     Some(state.clone()),
-                                    subquery.store.borrow().zoom,
+                                    current_zoom,
+                                    state_bbox.clone(),
                                     match_opts,
                                 ));
                             }

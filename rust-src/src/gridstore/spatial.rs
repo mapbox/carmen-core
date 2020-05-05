@@ -598,6 +598,10 @@ pub fn scoredist(mut zoom: u16, mut distance: f64, mut score: u8, radius: f64) -
     ((6. * E_POW[score as usize] / E_POW[7]) + 1.) / dist_ratio
 }
 
+pub fn bboxes_intersect(bbox1: [u16; 4], bbox2: [u16; 4]) -> bool {
+    !(bbox1[0] > bbox2[2] || bbox1[2] < bbox2[0] || bbox1[1] > bbox2[3] || bbox1[3] < bbox2[1])
+}
+
 #[test]
 fn scoredist_test() {
     assert_eq!(scoredist(14, 1., 0, 400.), 321.7508133738646, "scoredist for a feature 1 tile away from proximity point with score 0 and radius 400 should be 321.7508133738646");

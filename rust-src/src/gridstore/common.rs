@@ -114,6 +114,36 @@ impl Default for MatchOpts {
 pub const EARTH_CIRC_IN_MILES: f64 = 24901.0;
 pub const NEARBY_RADIUS: f64 = 25.0;
 
+#[inline(always)]
+pub fn adjust_bbox_zoom(bbox: [u16; 4], source_z: u16, target_z: u16) -> [u16; 4] {
+    if target_z < source_z {
+        let zoom_levels = source_z - target_z;
+        // If this is a zoom out, divide each coordinate by 2^(number of zoom levels).
+        // This is the same as shifting bits to the right by the number of zoom levels.
+        [
+            bbox[0] >> zoom_levels,
+            bbox[1] >> zoom_levels,
+            bbox[2] >> zoom_levels,
+            bbox[3] >> zoom_levels,
+        ]
+    } else {
+        // If this is a zoom in
+        let scale_multiplier = 1 << (target_z - source_z);
+
+        // Scale the top left (min x and y) tile coordinates by 2^(zoom diff).
+        // Scale the bottom right (max x and y) tile coordinates by 2^(zoom diff),
+        // and add the new number of tiles (-1) to get the outer edge of possible tiles.
+        // We subtract 1 from the scale_multiplier before adding to prevent an integer overflow
+        // given that we're using a 16bit integer
+        [
+            bbox[0] * scale_multiplier,
+            bbox[1] * scale_multiplier,
+            bbox[2] * scale_multiplier + (scale_multiplier - 1),
+            bbox[3] * scale_multiplier + (scale_multiplier - 1),
+        ]
+    }
+}
+
 impl MatchOpts {
     pub fn adjust_to_zoom(&self, target_z: u16) -> MatchOpts {
         if self.zoom == target_z {
@@ -142,37 +172,7 @@ impl MatchOpts {
                 None => None,
             };
 
-            let adjusted_bbox = match &self.bbox {
-                Some(orig_bbox) => {
-                    if target_z < self.zoom {
-                        let zoom_levels = self.zoom - target_z;
-                        // If this is a zoom out, divide each coordinate by 2^(number of zoom levels).
-                        // This is the same as shifting bits to the right by the number of zoom levels.
-                        Some([
-                            orig_bbox[0] >> zoom_levels,
-                            orig_bbox[1] >> zoom_levels,
-                            orig_bbox[2] >> zoom_levels,
-                            orig_bbox[3] >> zoom_levels,
-                        ])
-                    } else {
-                        // If this is a zoom in
-                        let scale_multiplier = 1 << (target_z - self.zoom);
-
-                        // Scale the top left (min x and y) tile coordinates by 2^(zoom diff).
-                        // Scale the bottom right (max x and y) tile coordinates by 2^(zoom diff),
-                        // and add the new number of tiles (-1) to get the outer edge of possible tiles.
-                        // We subtract 1 from the scale_multiplier before adding to prevent an integer overflow
-                        // given that we're using a 16bit integer
-                        Some([
-                            orig_bbox[0] * scale_multiplier,
-                            orig_bbox[1] * scale_multiplier,
-                            orig_bbox[2] * scale_multiplier + (scale_multiplier - 1),
-                            orig_bbox[3] * scale_multiplier + (scale_multiplier - 1),
-                        ])
-                    }
-                }
-                None => None,
-            };
+            let adjusted_bbox = self.bbox.map(|bbox| adjust_bbox_zoom(bbox, self.zoom, target_z));
 
             MatchOpts { zoom: target_z, proximity: adjusted_proximity, bbox: adjusted_bbox }
         }
