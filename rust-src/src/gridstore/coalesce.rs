@@ -675,7 +675,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     adjust_bbox_zoom(state_bbox, current_zoom, child_zoom)
                                 };
                                 let child_bbox = child.phrasematch.unwrap().store.borrow().bbox;
-                                //println!("{:?} {:?} {:?}", child_bbox, zoomed_bbox, bboxes_intersect(child_bbox, zoomed_bbox));
                                 if !bboxes_intersect(child_bbox, zoomed_bbox) {
                                     continue;
                                 }
