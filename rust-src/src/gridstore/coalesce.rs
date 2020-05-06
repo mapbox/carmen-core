@@ -683,7 +683,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                 }
                 if step.node.is_leaf()
                     && step.node.zoom == 14
-                    && step.relev_so_far <= contexts.peek_max().expect("contexts can't be empty").relev
+                    && step.relev_so_far
+                        <= contexts.peek_max().expect("contexts can't be empty").relev
                     && counter == 1
                     && count_bits(step.node.phrasematch.expect("expect pm").mask) == 1
                 {
