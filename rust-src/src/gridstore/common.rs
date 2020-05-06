@@ -1,6 +1,7 @@
 use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
 
+use crate::gridstore::spatial::adjust_bbox_zoom;
 use crate::gridstore::store::GridStore;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -142,37 +143,7 @@ impl MatchOpts {
                 None => None,
             };
 
-            let adjusted_bbox = match &self.bbox {
-                Some(orig_bbox) => {
-                    if target_z < self.zoom {
-                        let zoom_levels = self.zoom - target_z;
-                        // If this is a zoom out, divide each coordinate by 2^(number of zoom levels).
-                        // This is the same as shifting bits to the right by the number of zoom levels.
-                        Some([
-                            orig_bbox[0] >> zoom_levels,
-                            orig_bbox[1] >> zoom_levels,
-                            orig_bbox[2] >> zoom_levels,
-                            orig_bbox[3] >> zoom_levels,
-                        ])
-                    } else {
-                        // If this is a zoom in
-                        let scale_multiplier = 1 << (target_z - self.zoom);
-
-                        // Scale the top left (min x and y) tile coordinates by 2^(zoom diff).
-                        // Scale the bottom right (max x and y) tile coordinates by 2^(zoom diff),
-                        // and add the new number of tiles (-1) to get the outer edge of possible tiles.
-                        // We subtract 1 from the scale_multiplier before adding to prevent an integer overflow
-                        // given that we're using a 16bit integer
-                        Some([
-                            orig_bbox[0] * scale_multiplier,
-                            orig_bbox[1] * scale_multiplier,
-                            orig_bbox[2] * scale_multiplier + (scale_multiplier - 1),
-                            orig_bbox[3] * scale_multiplier + (scale_multiplier - 1),
-                        ])
-                    }
-                }
-                None => None,
-            };
+            let adjusted_bbox = self.bbox.map(|bbox| adjust_bbox_zoom(bbox, self.zoom, target_z));
 
             MatchOpts { zoom: target_z, proximity: adjusted_proximity, bbox: adjusted_bbox }
         }
