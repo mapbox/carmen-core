@@ -9,6 +9,7 @@ mod store;
 pub use builder::*;
 pub use coalesce::{coalesce, collapse_phrasematches, stack_and_coalesce, tree_coalesce};
 pub use common::*;
+pub use spatial::global_bbox_for_zoom;
 pub use stackable::stackable;
 pub use store::*;
 
@@ -194,7 +195,9 @@ mod tests {
 
         builder.finish().unwrap();
 
-        let reader = GridStore::new_with_options(directory.path(), 14, 0, 1000.).unwrap();
+        let reader =
+            GridStore::new_with_options(directory.path(), 14, 0, 1000., global_bbox_for_zoom(14))
+                .unwrap();
 
         let search_key =
             MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 2 }, lang_set: 1 };
@@ -507,10 +510,22 @@ mod tests {
         builder_with_boundaries.finish().unwrap();
         builder_without_boundaries.finish().unwrap();
 
-        let reader_with_boundaries =
-            GridStore::new_with_options(directory_with_boundaries.path(), 14, 0, 200.).unwrap();
-        let reader_without_boundaries =
-            GridStore::new_with_options(directory_without_boundaries.path(), 14, 0, 200.).unwrap();
+        let reader_with_boundaries = GridStore::new_with_options(
+            directory_with_boundaries.path(),
+            14,
+            0,
+            200.,
+            global_bbox_for_zoom(14),
+        )
+        .unwrap();
+        let reader_without_boundaries = GridStore::new_with_options(
+            directory_without_boundaries.path(),
+            14,
+            0,
+            200.,
+            global_bbox_for_zoom(14),
+        )
+        .unwrap();
 
         (
             reader_with_boundaries,
@@ -648,6 +663,7 @@ mod tests {
                 non_overlapping_indexes: FixedBitSet::with_capacity(128),
                 weight: 1.,
                 match_keys: vec![MatchKeyWithId {
+                    nearby_only: false,
                     id: 0,
                     key: MatchKey {
                         match_phrase: MatchPhrase::Range { start: range.0, end: range.1 },

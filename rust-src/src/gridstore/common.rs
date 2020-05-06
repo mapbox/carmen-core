@@ -1,6 +1,7 @@
 use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
 
+use crate::gridstore::spatial::adjust_bbox_zoom;
 use crate::gridstore::store::GridStore;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -111,6 +112,9 @@ impl Default for MatchOpts {
     }
 }
 
+pub const EARTH_CIRC_IN_MILES: f64 = 24901.0;
+pub const NEARBY_RADIUS: f64 = 25.0;
+
 impl MatchOpts {
     pub fn adjust_to_zoom(&self, target_z: u16) -> MatchOpts {
         if self.zoom == target_z {
@@ -139,40 +143,41 @@ impl MatchOpts {
                 None => None,
             };
 
-            let adjusted_bbox = match &self.bbox {
-                Some(orig_bbox) => {
-                    if target_z < self.zoom {
-                        let zoom_levels = self.zoom - target_z;
-                        // If this is a zoom out, divide each coordinate by 2^(number of zoom levels).
-                        // This is the same as shifting bits to the right by the number of zoom levels.
-                        Some([
-                            orig_bbox[0] >> zoom_levels,
-                            orig_bbox[1] >> zoom_levels,
-                            orig_bbox[2] >> zoom_levels,
-                            orig_bbox[3] >> zoom_levels,
-                        ])
-                    } else {
-                        // If this is a zoom in
-                        let scale_multiplier = 1 << (target_z - self.zoom);
-
-                        // Scale the top left (min x and y) tile coordinates by 2^(zoom diff).
-                        // Scale the bottom right (max x and y) tile coordinates by 2^(zoom diff),
-                        // and add the new number of tiles (-1) to get the outer edge of possible tiles.
-                        // We subtract 1 from the scale_multiplier before adding to prevent an integer overflow
-                        // given that we're using a 16bit integer
-                        Some([
-                            orig_bbox[0] * scale_multiplier,
-                            orig_bbox[1] * scale_multiplier,
-                            orig_bbox[2] * scale_multiplier + (scale_multiplier - 1),
-                            orig_bbox[3] * scale_multiplier + (scale_multiplier - 1),
-                        ])
-                    }
-                }
-                None => None,
-            };
+            let adjusted_bbox = self.bbox.map(|bbox| adjust_bbox_zoom(bbox, self.zoom, target_z));
 
             MatchOpts { zoom: target_z, proximity: adjusted_proximity, bbox: adjusted_bbox }
         }
+    }
+
+    pub fn with_nearby_only(&self) -> MatchOpts {
+        let mut constrained = self.clone();
+        let prox = if let Some(prox) = constrained.proximity {
+            prox.clone()
+        } else {
+            return constrained;
+        };
+
+        let miles_per_tile = EARTH_CIRC_IN_MILES / ((1 << constrained.zoom) as f64);
+        let padding = (NEARBY_RADIUS / miles_per_tile).ceil() as u16;
+
+        let mut new_box: [u16; 4] = [
+            if prox[0] < padding { 0 } else { prox[0] - padding }, // prevent overflows because this is unsigned
+            if prox[1] < padding { 0 } else { prox[1] - padding }, // ditto
+            prox[0] + padding,
+            prox[1] + padding,
+        ];
+
+        if let Some(old_box) = constrained.bbox {
+            new_box = [
+                std::cmp::max(old_box[0], new_box[0]),
+                std::cmp::max(old_box[1], new_box[1]),
+                std::cmp::min(old_box[2], new_box[2]),
+                std::cmp::min(old_box[3], new_box[3]),
+            ]
+        }
+
+        constrained.bbox = Some(new_box);
+        constrained
     }
 }
 
@@ -318,6 +323,36 @@ mod tests {
             "Multi-tile parent zoomed in one zoom level includes all the higher-zoom tiles"
         );
     }
+
+    #[test]
+    fn nearby_only() {
+        let opts = matchopts_proximity_generator([100, 100], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([83, 83, 117, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+
+        let opts = matchopts_proximity_generator([100, 100], 6);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([99, 99, 101, 101]), proximity: Some([100, 100]), zoom: 6 }
+        );
+
+        // truncate at the antemeridian
+        let opts = matchopts_proximity_generator([5, 5], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([0, 0, 22, 22]), proximity: Some([5, 5]), zoom: 14 }
+        );
+
+        // test interaction between existing bbox and limiter
+        let mut opts = matchopts_proximity_generator([100, 100], 14);
+        opts.bbox = Some([90, 70, 115, 180]);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([90, 83, 115, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+    }
 }
 
 // keys consist of a marker byte indicating type (regular entry, prefix cache, etc.) followed by
@@ -407,6 +442,8 @@ impl Eq for CoalesceContext {}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MatchKeyWithId {
     pub key: MatchKey,
+    #[serde(default)]
+    pub nearby_only: bool,
     pub id: u32,
 }
 

@@ -81,6 +81,7 @@ struct GridStoreOpts {
     pub zoom: u16,
     pub type_id: u16,
     pub coalesce_radius: f64,
+    pub bbox: [u16; 4],
 }
 
 declare_types! {
@@ -286,7 +287,8 @@ declare_types! {
                         filename,
                         opts.zoom,
                         opts.type_id,
-                        opts.coalesce_radius
+                        opts.coalesce_radius,
+                        opts.bbox,
                     )
                 },
                 None => GridStore::new(filename)
@@ -494,6 +496,13 @@ where
 
         let idx = js_phrasematch.get(cx, "idx")?;
 
+        let js_nearby_only = js_phrasematch.get(cx, "nearby_only")?;
+        let nearby_only: bool = if let Ok(_) = js_nearby_only.downcast::<JsUndefined>() {
+            false
+        } else {
+            js_nearby_only.downcast::<JsBoolean>().or_throw(cx)?.value()
+        };
+
         let js_non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
         let non_overlapping_indexes: Vec<u32> = neon_serde::from_value(cx, js_non_overlapping_indexes)?;
 
@@ -503,6 +512,7 @@ where
             match_keys: vec![MatchKeyWithId {
                 key: MatchKey { match_phrase: neon_serde::from_value(cx, match_phrase)?, lang_set },
                 id: neon_serde::from_value(cx, id)?,
+                nearby_only
             }],
             mask: neon_serde::from_value(cx, mask)?,
             idx: neon_serde::from_value(cx, idx)?,

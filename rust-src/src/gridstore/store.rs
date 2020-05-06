@@ -29,6 +29,7 @@ pub struct GridStore {
     pub coalesce_radius: f64,
     #[serde(default)]
     pub might_be_slow: bool,
+    pub bbox: [u16; 4],
 }
 
 #[inline]
@@ -254,7 +255,7 @@ impl<T: Iterator<Item = MatchEntry>> Eq for QueueElement<T> {}
 
 impl GridStore {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        GridStore::new_with_options(path, 6, 0, 0.0)
+        GridStore::new_with_options(path, 6, 0, 0.0, [0, 0, 63, 63])
     }
 
     pub fn mark_slow_indexes(zoom: u16) -> bool {
@@ -266,6 +267,7 @@ impl GridStore {
         zoom: u16,
         type_id: u16,
         coalesce_radius: f64,
+        bbox: [u16; 4],
     ) -> Result<Self, Error> {
         let path = path.as_ref().to_owned();
         let mut opts = Options::default();
@@ -291,7 +293,7 @@ impl GridStore {
         };
 
         let might_be_slow = GridStore::mark_slow_indexes(zoom);
-        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, might_be_slow })
+        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, bbox, might_be_slow })
     }
 
     #[inline(never)]
