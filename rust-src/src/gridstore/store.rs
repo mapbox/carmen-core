@@ -293,7 +293,16 @@ impl GridStore {
         };
 
         let might_be_slow = GridStore::mark_slow_indexes(zoom);
-        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, bbox, might_be_slow })
+        Ok(GridStore {
+            db,
+            path,
+            bin_boundaries,
+            zoom,
+            type_id,
+            coalesce_radius,
+            bbox,
+            might_be_slow,
+        })
     }
 
     #[inline(never)]
