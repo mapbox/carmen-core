@@ -425,6 +425,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         // the next few best nodes, and executing on them in parallel
         let mut step_chunk = Vec::with_capacity(COALESCE_CHUNK_SIZE);
         let mut keys = Vec::new();
+        let mut unique_keys = HashSet::new();
         for _i in 0..COALESCE_CHUNK_SIZE {
             if let Some(step) = steps.pop_max() {
                 // if we've already gotten as many items as we're going to return, only keep processing
@@ -449,13 +450,21 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                 for key_group in subquery.match_keys.iter() {
                     if is_single || !data_cache.contains_key(&key_group.id) {
-                        keys.push(KeyFetchStep {
-                            key_id: key_group.id,
-                            subquery: (*subquery).clone(),
-                            key: key_group.key.clone(),
-                            match_opts: step.match_opts.clone(),
-                            is_single,
-                        });
+                        let match_opts = if key_group.nearby_only {
+                            step.match_opts.with_nearby_only()
+                        } else {
+                            step.match_opts.clone()
+                        };
+
+                        if unique_keys.insert((key_group.id, is_single)) {
+                            keys.push(KeyFetchStep {
+                                key_id: key_group.id,
+                                subquery: (*subquery).clone(),
+                                key: key_group.key.clone(),
+                                match_opts: match_opts,
+                                is_single,
+                            });
+                        }
                     }
                 }
 
@@ -825,6 +834,7 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
             }],
@@ -837,6 +847,7 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
+                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
             }],

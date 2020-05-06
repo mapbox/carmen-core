@@ -648,6 +648,7 @@ mod tests {
                 non_overlapping_indexes: FixedBitSet::with_capacity(128),
                 weight: 1.,
                 match_keys: vec![MatchKeyWithId {
+                    nearby_only: false,
                     id: 0,
                     key: MatchKey {
                         match_phrase: MatchPhrase::Range { start: range.0, end: range.1 },

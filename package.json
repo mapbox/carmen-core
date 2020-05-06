@@ -1,6 +1,6 @@
 {
   "name": "@mapbox/carmen-core",
-  "version": "0.1.1-two-time",
+  "version": "0.1.1-nearby-only-3",
   "description": "node bindings for carmen-core",
   "main": "index.js",
   "engines": {
