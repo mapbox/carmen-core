@@ -47,7 +47,7 @@ pub fn bfs<T: Borrow<GridStore> + Clone + Debug>(tree: StackableTree<T>) -> Vec<
     return node_vec;
 }
 
-pub const LEAF_SOFT_MAX: usize = 1024;
+pub const LEAF_SOFT_MAX: usize = 2000;
 
 #[derive(Debug, Clone)]
 pub struct ArenaManager<'a, T: Borrow<GridStore> + Clone + Debug> {
