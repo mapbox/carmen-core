@@ -738,7 +738,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         .borrow()
                         .might_be_slow
                     && step.relev_so_far
-                        <= 0.75 * contexts.peek_max().expect("contexts can't be empty").relev
+                        < contexts.peek_max().expect("contexts can't be empty").relev
                     && counter == 1
                     && step.node.phrasematch.expect("phrasematch required").mask.count_ones() == 1
                 {
