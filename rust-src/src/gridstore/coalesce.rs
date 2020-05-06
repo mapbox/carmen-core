@@ -644,7 +644,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     Some(state.clone()),
                                     subquery.store.borrow().zoom,
                                     match_opts,
-                                    step.relev_so_far + child.phrasematch.expect("pm").weight,
+                                    step.relev_so_far
+                                        + child.phrasematch.expect("phrasematch required").weight,
                                 ));
                             }
                         }
@@ -662,7 +663,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
             for step in next_steps {
                 let mut counter = 0;
-                for key in &step.node.phrasematch.expect("require phrasematch").match_keys {
+                for key in &step.node.phrasematch.expect("phrasematch required").match_keys {
                     let start = match key.key.match_phrase {
                         MatchPhrase::Exact(phrase_id) => phrase_id,
                         MatchPhrase::Range { start, .. } => start,
@@ -679,12 +680,19 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         break;
                     }
                 }
+
                 if step.node.is_leaf()
-                    && step.node.zoom == 14
+                    && step
+                        .node
+                        .phrasematch
+                        .expect("phrasematch required")
+                        .store
+                        .borrow()
+                        .might_be_slow
                     && step.relev_so_far
                         <= contexts.peek_max().expect("contexts can't be empty").relev
                     && counter == 1
-                    && count_bits(step.node.phrasematch.expect("expect pm").mask) == 1
+                    && step.node.phrasematch.expect("phrasematch required").mask.count_ones() == 1
                 {
                     continue;
                 }
@@ -822,17 +830,6 @@ pub fn collapse_phrasematches<T: Borrow<GridStore> + Clone + Debug>(
     phrasematch_results
 }
 
-pub fn count_bits(mut mask: u32) -> u32 {
-    let mut count = 0;
-    while mask != 0 {
-        if mask & 1 == 1 {
-            count = count + 1;
-        }
-        mask = mask >> 1;
-    }
-    count
-}
-
 pub fn stack_and_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     phrasematches: &Vec<PhrasematchSubquery<T>>,
     match_opts: &MatchOpts,
@@ -865,8 +862,7 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 =
-            GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
+        let store1 = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,

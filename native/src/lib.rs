@@ -78,7 +78,6 @@ type KeyIterator = OwningHandle<ArcGridStore, Box<dyn Iterator<Item=Result<GridK
 
 #[derive(Deserialize, Debug, PartialEq, Clone)]
 struct GridStoreOpts {
-    pub is_slow: Option<bool>,
     pub zoom: u16,
     pub type_id: u16,
     pub coalesce_radius: f64,
@@ -285,7 +284,6 @@ declare_types! {
 
                     GridStore::new_with_options(
                         filename,
-                        opts.is_slow,
                         opts.zoom,
                         opts.type_id,
                         opts.coalesce_radius

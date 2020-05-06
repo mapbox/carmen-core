@@ -194,8 +194,7 @@ mod tests {
 
         builder.finish().unwrap();
 
-        let reader =
-            GridStore::new_with_options(directory.path(), Option::default(), 14, 0, 1000.).unwrap();
+        let reader = GridStore::new_with_options(directory.path(), 14, 0, 1000.).unwrap();
 
         let search_key =
             MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 2 }, lang_set: 1 };
@@ -508,22 +507,10 @@ mod tests {
         builder_with_boundaries.finish().unwrap();
         builder_without_boundaries.finish().unwrap();
 
-        let reader_with_boundaries = GridStore::new_with_options(
-            directory_with_boundaries.path(),
-            Option::default(),
-            14,
-            0,
-            200.,
-        )
-        .unwrap();
-        let reader_without_boundaries = GridStore::new_with_options(
-            directory_without_boundaries.path(),
-            Option::default(),
-            14,
-            0,
-            200.,
-        )
-        .unwrap();
+        let reader_with_boundaries =
+            GridStore::new_with_options(directory_with_boundaries.path(), 14, 0, 200.).unwrap();
+        let reader_without_boundaries =
+            GridStore::new_with_options(directory_without_boundaries.path(), 14, 0, 200.).unwrap();
 
         (
             reader_with_boundaries,

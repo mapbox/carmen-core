@@ -22,8 +22,7 @@ fn coalesce_single_test_proximity_quadrants() {
 
     builder.finish().unwrap();
 
-    let store =
-        GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
+    let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
@@ -123,8 +122,7 @@ fn coalesce_single_test_proximity_basic() {
 
     builder.finish().unwrap();
 
-    let store =
-        GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 200.).unwrap();
+    let store = GridStore::new_with_options(directory.path(), 14, 1, 200.).unwrap();
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
@@ -175,8 +173,7 @@ fn coalesce_single_test_language_penalty() {
     builder.insert(&key, entries).expect("Unable to insert record");
     builder.finish().unwrap();
 
-    let store =
-        GridStore::new_with_options(directory.path(), Option::default(), 14, 1, 1.).unwrap();
+    let store = GridStore::new_with_options(directory.path(), 14, 1, 1.).unwrap();
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
@@ -576,8 +573,7 @@ fn coalesce_single_languages_test() {
     }
     builder.finish().unwrap();
 
-    let store =
-        GridStore::new_with_options(directory.path(), Option::default(), 6, 1, 200.).unwrap();
+    let store = GridStore::new_with_options(directory.path(), 6, 1, 200.).unwrap();
     // Test query with all languages
     println!("Coalesce single - all languages");
     let subquery = PhrasematchSubquery {
