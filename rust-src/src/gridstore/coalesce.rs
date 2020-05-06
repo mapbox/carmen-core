@@ -583,8 +583,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                         new_context.mask = new_context.mask | subquery.mask;
                                         new_context.relev += entry.grid_entry.relev;
                                         if new_context.relev > step.relev_so_far {
-                                            step.relev_so_far = new_context.relev
-                                                + step.node.phrasematch.expect("pm").weight;
+                                            step.relev_so_far = new_context.relev;
                                         }
 
                                         let mut out_context = new_context.clone();
@@ -619,8 +618,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 };
 
                                 if context.relev > step.relev_so_far {
-                                    step.relev_so_far =
-                                        context.relev + step.node.phrasematch.expect("pm").weight;
+                                    step.relev_so_far = context.relev;
                                 }
 
                                 let mut out_context = context.clone();
@@ -646,7 +644,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     Some(state.clone()),
                                     subquery.store.borrow().zoom,
                                     match_opts,
-                                    step.relev_so_far,
+                                    step.relev_so_far + child.phrasematch.expect("pm").weight,
                                 ));
                             }
                         }
