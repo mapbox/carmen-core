@@ -728,7 +728,11 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                 if step.node.is_leaf()
                     && phrasematch.store.borrow().might_be_slow()
-                    && step.relev_so_far <= 0.75 * contexts.peek_max().map_or(0.0, |coalesce_context| coalesce_context.relev)
+                    && step.relev_so_far
+                        <= 0.75
+                            * contexts
+                                .peek_max()
+                                .map_or(0.0, |coalesce_context| coalesce_context.relev)
                     && is_range == true
                     && phrasematch.mask.count_ones() == 1
                 {
