@@ -23,6 +23,7 @@ rayon = "1.3.0"
 fixedbitset = "0.3.0"
 generational-arena = "0.2.7"
 indexmap = "1.3.2"
+flatbush-rs = { git = "https://github.com/apendleton/flatbush-rs.git", rev = "4e6df80a749d03803abd9076e60923f265f6c084" }
 
 [dev-dependencies]
 tempfile = "3.0"

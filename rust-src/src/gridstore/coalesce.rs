@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use failure::Error;
+use flatbush_rs::{Flatbush, FlatbushBuilder};
 use indexmap::map::{Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
@@ -336,7 +337,23 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
     Ok(contexts)
 }
 
-type TreeCoalesceState = HashMap<(u16, u16), Vec<CoalesceContext>>;
+struct TreeCoalesceState {
+    contexts: Vec<CoalesceContext>,
+    flatbush: Flatbush<u16>,
+}
+
+impl TreeCoalesceState {
+    fn new(contexts: Vec<CoalesceContext>) -> TreeCoalesceState {
+        let mut builder: FlatbushBuilder<u16> = FlatbushBuilder::new(contexts.len(), None);
+        for context in contexts.iter() {
+            let (x, y) = (context.entries[0].grid_entry.x, context.entries[0].grid_entry.y);
+            builder.add(x, y, x, y);
+        }
+        let flatbush = builder.finish();
+        TreeCoalesceState { contexts, flatbush }
+    }
+}
+
 struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     node: &'a StackableNode<'a, T>,
     prev_state: Option<Arc<TreeCoalesceState>>,
@@ -562,8 +579,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     let scale_factor: u16 = 1 << (subquery.store.borrow().zoom - step.prev_zoom);
 
-                    let mut state: TreeCoalesceState = TreeCoalesceState::new();
-                    let mut state_bbox: [u16; 4] = [u16::MAX, u16::MAX, 0, 0];
+                    let mut state_contexts: Vec<CoalesceContext> = Vec::new();
 
                     for key_group in subquery.match_keys.iter() {
                         let grids = data_cache
@@ -581,48 +597,38 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     grid.grid_entry.y / scale_factor,
                                 );
 
-                                if let Some(already_coalesced) = prev_state.get(&prev_zoom_xy) {
-                                    let entry = grid_to_coalesce_entry(
-                                        &grid,
-                                        &subquery,
-                                        &step.match_opts,
-                                        key_group.id,
-                                    );
-                                    for parent_context in already_coalesced {
-                                        let mut new_context = parent_context.clone();
-                                        new_context.entries.insert(0, entry.clone());
+                                let entry = grid_to_coalesce_entry(
+                                    &grid,
+                                    &subquery,
+                                    &step.match_opts,
+                                    key_group.id,
+                                );
 
-                                        new_context.mask = new_context.mask | subquery.mask;
-                                        new_context.relev += entry.grid_entry.relev;
-                                        if new_context.relev > relev_so_far {
-                                            relev_so_far = new_context.relev;
-                                        }
+                                let already_coalesced = prev_state.flatbush.search(
+                                    prev_zoom_xy.0,
+                                    prev_zoom_xy.1,
+                                    prev_zoom_xy.0,
+                                    prev_zoom_xy.1,
+                                );
+                                for parent_id in already_coalesced {
+                                    let parent_context = &prev_state.contexts[parent_id];
+                                    let mut new_context = parent_context.clone();
+                                    new_context.entries.insert(0, entry.clone());
 
-                                        let mut out_context = new_context.clone();
-                                        penalize_multi_context(&mut out_context);
-                                        step_contexts.push(out_context);
+                                    new_context.mask = new_context.mask | subquery.mask;
+                                    new_context.relev += entry.grid_entry.relev;
+                                    if new_context.relev > relev_so_far {
+                                        relev_so_far = new_context.relev;
+                                    }
 
-                                        if step.node.children.len() > 0 {
-                                            // only bother with getting ready to recurse if we have any children to
-                                            // operate on
-                                            let state_vec = state
-                                                .entry((grid.grid_entry.x, grid.grid_entry.y))
-                                                .or_insert_with(|| vec![]);
-                                            state_vec.push(new_context);
+                                    let mut out_context = new_context.clone();
+                                    penalize_multi_context(&mut out_context);
+                                    step_contexts.push(out_context);
 
-                                            if grid.grid_entry.x < state_bbox[0] {
-                                                state_bbox[0] = grid.grid_entry.x;
-                                            }
-                                            if grid.grid_entry.y < state_bbox[1] {
-                                                state_bbox[1] = grid.grid_entry.y;
-                                            }
-                                            if grid.grid_entry.x > state_bbox[2] {
-                                                state_bbox[2] = grid.grid_entry.x;
-                                            }
-                                            if grid.grid_entry.y > state_bbox[3] {
-                                                state_bbox[3] = grid.grid_entry.y;
-                                            }
-                                        }
+                                    if step.node.children.len() > 0 {
+                                        // only bother with getting ready to recurse if we have any children to
+                                        // operate on
+                                        state_contexts.push(new_context);
                                     }
                                 }
                             }
@@ -650,42 +656,36 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 penalize_multi_context(&mut out_context);
                                 step_contexts.push(out_context);
 
-                                let state_vec = state
-                                    .entry((grid.grid_entry.x, grid.grid_entry.y))
-                                    .or_insert_with(|| vec![]);
-                                state_vec.push(context);
-
-                                if grid.grid_entry.x < state_bbox[0] {
-                                    state_bbox[0] = grid.grid_entry.x;
-                                }
-                                if grid.grid_entry.y < state_bbox[1] {
-                                    state_bbox[1] = grid.grid_entry.y;
-                                }
-                                if grid.grid_entry.x > state_bbox[2] {
-                                    state_bbox[2] = grid.grid_entry.x;
-                                }
-                                if grid.grid_entry.y > state_bbox[3] {
-                                    state_bbox[3] = grid.grid_entry.y;
-                                }
+                                state_contexts.push(context);
                             }
                         }
                         phrasematch_contexts.extend(step_contexts.into_iter());
                     }
 
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
-                    if state.len() > 0 {
-                        let state = Arc::new(state);
+                    if state_contexts.len() > 0 {
+                        let state = Arc::new(TreeCoalesceState::new(state_contexts));
                         let current_zoom = subquery.store.borrow().zoom;
                         for child_idx in step.node.children.iter() {
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
-                                let child_zoom = child.phrasematch.unwrap().store.borrow().zoom;
-                                let zoomed_bbox = if child_zoom == current_zoom {
-                                    state_bbox
+                                let child_store = child.phrasematch.unwrap().store.borrow();
+                                let child_zoom = child_store.zoom;
+                                let child_bbox = if child_zoom == current_zoom {
+                                    child_store.bbox
                                 } else {
-                                    adjust_bbox_zoom(state_bbox, current_zoom, child_zoom)
+                                    adjust_bbox_zoom(child_store.bbox, child_zoom, current_zoom)
                                 };
-                                let child_bbox = child.phrasematch.unwrap().store.borrow().bbox;
-                                if !bboxes_intersect(child_bbox, zoomed_bbox) {
+                                if !state
+                                    .flatbush
+                                    .search(
+                                        child_bbox[0],
+                                        child_bbox[1],
+                                        child_bbox[2],
+                                        child_bbox[3],
+                                    )
+                                    .next()
+                                    .is_some()
+                                {
                                     continue;
                                 }
                                 next_steps.push(CoalesceStep::new(
