@@ -550,7 +550,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         let chunk_results: Vec<Result<(Vec<CoalesceContext>, Vec<CoalesceStep<'_, T>>), Error>> =
             step_chunk
                 .into_par_iter()
-                .map(|mut step| {
+                .map(|step| {
+                    let mut relev_so_far = 0.0;
                     let subquery = step
                         .node
                         .phrasematch
@@ -593,8 +594,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                                         new_context.mask = new_context.mask | subquery.mask;
                                         new_context.relev += entry.grid_entry.relev;
-                                        if new_context.relev > step.relev_so_far {
-                                            step.relev_so_far = new_context.relev;
+                                        if new_context.relev > relev_so_far {
+                                            relev_so_far = new_context.relev;
                                         }
 
                                         let mut out_context = new_context.clone();
@@ -641,8 +642,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     entries: vec![entry],
                                 };
 
-                                if context.relev > step.relev_so_far {
-                                    step.relev_so_far = context.relev;
+                                if context.relev > relev_so_far {
+                                    relev_so_far = context.relev;
                                 }
 
                                 let mut out_context = context.clone();
@@ -692,7 +693,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     Some(state.clone()),
                                     current_zoom,
                                     match_opts,
-                                    step.relev_so_far
+                                    relev_so_far
                                         + child.phrasematch.expect("phrasematch required").weight,
                                 ));
                             }
@@ -710,37 +711,26 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             }
 
             for step in next_steps {
-                let mut counter = 0;
-                for key in &step.node.phrasematch.expect("phrasematch required").match_keys {
-                    let start = match key.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start, .. } => start,
-                    };
-
-                    let end = match key.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => phrase_id,
-                        MatchPhrase::Range { start: _, end } => end,
+                let phrasematch = step.node.phrasematch.expect("phrasematch required");
+                let mut is_range: bool = false;
+                for key in &phrasematch.match_keys {
+                    let (start, end) = match key.key.match_phrase {
+                        MatchPhrase::Exact(phrase_id) => (0, phrase_id),
+                        MatchPhrase::Range { start, end } => (start, end),
                     };
 
                     let range = end - start;
                     if range > 1 {
-                        counter = 1;
+                        is_range = true;
                         break;
                     }
                 }
 
                 if step.node.is_leaf()
-                    && step
-                        .node
-                        .phrasematch
-                        .expect("phrasematch required")
-                        .store
-                        .borrow()
-                        .might_be_slow
-                    && step.relev_so_far
-                        <= 0.75 * contexts.peek_max().expect("contexts can't be empty").relev
-                    && counter == 1
-                    && step.node.phrasematch.expect("phrasematch required").mask.count_ones() == 1
+                    && phrasematch.store.borrow().might_be_slow()
+                    && step.relev_so_far <= 0.75 * contexts.peek_max().map_or(0.0, |coalesce_context| coalesce_context.relev)
+                    && is_range == true
+                    && phrasematch.mask.count_ones() == 1
                 {
                     continue;
                 }

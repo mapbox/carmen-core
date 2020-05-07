@@ -27,8 +27,6 @@ pub struct GridStore {
     pub zoom: u16,
     pub type_id: u16,
     pub coalesce_radius: f64,
-    #[serde(default)]
-    pub might_be_slow: bool,
     pub bbox: [u16; 4],
 }
 
@@ -258,8 +256,8 @@ impl GridStore {
         GridStore::new_with_options(path, 6, 0, 0.0, [0, 0, 63, 63])
     }
 
-    pub fn mark_slow_indexes(zoom: u16) -> bool {
-        return if zoom == 14 { true } else { false };
+    pub fn might_be_slow(&self) -> bool {
+        return if self.zoom == 14 { true } else { false };
     }
 
     pub fn new_with_options<P: AsRef<Path>>(
@@ -292,17 +290,7 @@ impl GridStore {
             None => HashSet::new(),
         };
 
-        let might_be_slow = GridStore::mark_slow_indexes(zoom);
-        Ok(GridStore {
-            db,
-            path,
-            bin_boundaries,
-            zoom,
-            type_id,
-            coalesce_radius,
-            bbox,
-            might_be_slow,
-        })
+        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, bbox })
     }
 
     #[inline(never)]
