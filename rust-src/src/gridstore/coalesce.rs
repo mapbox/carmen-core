@@ -342,6 +342,7 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
     match_opts: MatchOpts,
+    relev_so_far: f64,
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
@@ -350,6 +351,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         prev_state: Option<Arc<TreeCoalesceState>>,
         prev_zoom: u16,
         match_opts: &MatchOpts,
+        relev_so_far: f64,
     ) -> CoalesceStep<'a, T> {
         let subquery = node.phrasematch.expect("phrasematch required");
         let match_opts = if match_opts.zoom == subquery.store.borrow().zoom {
@@ -357,7 +359,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts }
+        CoalesceStep { node, prev_state, prev_zoom, match_opts, relev_so_far }
     }
 }
 
@@ -417,7 +419,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
             // push the first set of nodes into the queue
-            steps.push(CoalesceStep::new(&node, None, 0, match_opts));
+            steps.push(CoalesceStep::new(&node, None, 0, match_opts, 0.0));
         }
     }
 
@@ -549,6 +551,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             step_chunk
                 .into_par_iter()
                 .map(|step| {
+                    let mut relev_so_far = 0.0;
                     let subquery = step
                         .node
                         .phrasematch
@@ -591,6 +594,9 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                                         new_context.mask = new_context.mask | subquery.mask;
                                         new_context.relev += entry.grid_entry.relev;
+                                        if new_context.relev > relev_so_far {
+                                            relev_so_far = new_context.relev;
+                                        }
 
                                         let mut out_context = new_context.clone();
                                         penalize_multi_context(&mut out_context);
@@ -635,6 +641,10 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     relev: entry.grid_entry.relev,
                                     entries: vec![entry],
                                 };
+
+                                if context.relev > relev_so_far {
+                                    relev_so_far = context.relev;
+                                }
 
                                 let mut out_context = context.clone();
                                 penalize_multi_context(&mut out_context);
@@ -683,6 +693,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     Some(state.clone()),
                                     current_zoom,
                                     match_opts,
+                                    relev_so_far
+                                        + child.phrasematch.expect("phrasematch required").weight,
                                 ));
                             }
                         }
@@ -697,7 +709,35 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             for context in phrasematch_contexts {
                 contexts.push(context);
             }
+
             for step in next_steps {
+                let phrasematch = step.node.phrasematch.expect("phrasematch required");
+                let mut is_range: bool = false;
+                for key in &phrasematch.match_keys {
+                    let (start, end) = match key.key.match_phrase {
+                        MatchPhrase::Exact(phrase_id) => (0, phrase_id),
+                        MatchPhrase::Range { start, end } => (start, end),
+                    };
+
+                    let range = end - start;
+                    if range > 1 {
+                        is_range = true;
+                        break;
+                    }
+                }
+
+                if step.node.is_leaf()
+                    && phrasematch.store.borrow().might_be_slow()
+                    && step.relev_so_far
+                        <= 0.75
+                            * contexts
+                                .peek_max()
+                                .map_or(0.0, |coalesce_context| coalesce_context.relev)
+                    && is_range == true
+                    && phrasematch.mask.count_ones() == 1
+                {
+                    continue;
+                }
                 steps.push(step);
             }
         }

@@ -498,6 +498,10 @@ impl<T: Ord> ConstrainedPriorityQueue<T> {
         self.heap.peek_min()
     }
 
+    pub fn peek_max(&self) -> Option<&T> {
+        self.heap.peek_max()
+    }
+
     pub fn len(&self) -> usize {
         self.heap.len()
     }

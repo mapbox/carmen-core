@@ -256,6 +256,10 @@ impl GridStore {
         GridStore::new_with_options(path, 6, 0, 0.0, [0, 0, 63, 63])
     }
 
+    pub fn might_be_slow(&self) -> bool {
+        return if self.zoom == 14 { true } else { false };
+    }
+
     pub fn new_with_options<P: AsRef<Path>>(
         path: P,
         zoom: u16,

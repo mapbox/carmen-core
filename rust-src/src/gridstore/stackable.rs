@@ -23,7 +23,7 @@ pub struct StackableNode<'a, T: Borrow<GridStore> + Clone + Debug> {
 }
 
 impl<'a, T: Borrow<GridStore> + Clone + Debug> StackableNode<'a, T> {
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.children.len() == 0
     }
 }
