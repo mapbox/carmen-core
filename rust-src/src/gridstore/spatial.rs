@@ -632,11 +632,11 @@ pub fn adjust_bbox_zoom(bbox: [u16; 4], source_z: u16, target_z: u16) -> [u16; 4
     }
 }
 
-pub fn global_bbox_for_zoom(zoom: u16) -> [u16; 4] {
+pub fn global_bbox_for_zoom(zoom: u16) -> Vec<[u16; 4]> {
     // do this at u32 to avoid overflow at z16
     let max: u32 = (1u32 << zoom) - 1;
     let max = max as u16;
-    [0, 0, max, max]
+    vec![[0, 0, max, max]]
 }
 
 #[test]

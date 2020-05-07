@@ -531,6 +531,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     Ok(KeyFetchResult::Single(step_contexts))
                 } else {
+                    let now = std::time::Instant::now();
                     let data: Vec<_> = key_step
                         .subquery
                         .store
@@ -542,6 +543,15 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         )?
                         .take(MAX_GRIDS_PER_PHRASE)
                         .collect();
+                    let elapsed = now.elapsed().as_secs_f64() * 1000.0;
+                    if elapsed > 2.0 {
+                        println!(
+                            "FETCHING {:?} {} {:?}",
+                            key_step.subquery.store.borrow().path.file_name().unwrap(),
+                            elapsed,
+                            &key_step.key
+                        );
+                    }
                     Ok(KeyFetchResult::Multi((key_step.key_id, data)))
                 }
             })
@@ -670,24 +680,40 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
                                 let child_store = child.phrasematch.unwrap().store.borrow();
                                 let child_zoom = child_store.zoom;
-                                let child_bbox = if child_zoom == current_zoom {
-                                    child_store.bbox
+
+                                let zoomed_bboxes: Vec<_>;
+                                let child_bboxes = if child_zoom == current_zoom {
+                                    &child_store.bboxes
                                 } else {
-                                    adjust_bbox_zoom(child_store.bbox, child_zoom, current_zoom)
+                                    zoomed_bboxes = child_store
+                                        .bboxes
+                                        .iter()
+                                        .map(|bbox| {
+                                            adjust_bbox_zoom(*bbox, child_zoom, current_zoom)
+                                        })
+                                        .collect();
+                                    &zoomed_bboxes
                                 };
-                                if !state
-                                    .flatbush
-                                    .search(
-                                        child_bbox[0],
-                                        child_bbox[1],
-                                        child_bbox[2],
-                                        child_bbox[3],
-                                    )
-                                    .next()
-                                    .is_some()
-                                {
+
+                                // the index might have multiple bounding boxes; one of them has to overlap
+                                // for us to bother continuing
+                                let overlaps = child_bboxes.iter().any(|bbox| {
+                                    state
+                                        .flatbush
+                                        .search(bbox[0], bbox[1], bbox[2], bbox[3])
+                                        .next()
+                                        .is_some()
+                                });
+
+                                if !overlaps {
+                                    //println!(
+                                    //    "skipping {:?} {:?}",
+                                    //    subquery.store.borrow().path.file_name().unwrap(),
+                                    //    child.phrasematch.unwrap().store.borrow().path.file_name().unwrap()
+                                    //);
                                     continue;
                                 }
+
                                 next_steps.push(CoalesceStep::new(
                                     &child,
                                     Some(state.clone()),

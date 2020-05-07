@@ -81,7 +81,7 @@ struct GridStoreOpts {
     pub zoom: u16,
     pub type_id: u16,
     pub coalesce_radius: f64,
-    pub bbox: [u16; 4],
+    pub bboxes: Vec<[u16; 4]>,
 }
 
 declare_types! {
@@ -288,7 +288,7 @@ declare_types! {
                         opts.zoom,
                         opts.type_id,
                         opts.coalesce_radius,
-                        opts.bbox,
+                        opts.bboxes,
                     )
                 },
                 None => GridStore::new(filename)
