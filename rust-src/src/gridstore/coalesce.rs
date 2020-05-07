@@ -359,6 +359,7 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
     match_opts: MatchOpts,
+    override_bbox: Vec<Option<[u16; 4]>>,
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
@@ -374,7 +375,9 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts }
+        let mut override_bbox = Vec::new();
+        override_bbox.resize(subquery.match_keys.len(), None);
+        CoalesceStep { node, prev_state, prev_zoom, match_opts, override_bbox }
     }
 }
 
@@ -401,6 +404,7 @@ struct KeyFetchStep<T: Borrow<GridStore> + Clone + Debug> {
     key: MatchKey,
     match_opts: MatchOpts,
     is_single: bool,
+    override_bbox: Option<[u16; 4]>
 }
 
 // this is the thing that comes out of the first phase of two-phase coalesce
@@ -408,7 +412,7 @@ struct KeyFetchStep<T: Borrow<GridStore> + Clone + Debug> {
 // we only do the first part, depending what kind of node we're on, we'll return different things
 enum KeyFetchResult {
     Single(ConstrainedPriorityQueue<CoalesceContext>),
-    Multi((u32, Vec<MatchEntry>)),
+    Multi((u32, Option<[u16; 4]>, Vec<MatchEntry>)),
 }
 
 fn penalize_multi_context(context: &mut CoalesceContext) {
@@ -429,7 +433,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     let mut contexts: ConstrainedPriorityQueue<CoalesceContext> =
         ConstrainedPriorityQueue::new(MAX_CONTEXTS * 20);
     let mut steps: MinMaxHeap<CoalesceStep<T>> = MinMaxHeap::new();
-    let mut data_cache: HashMap<u32, Vec<MatchEntry>> = HashMap::new();
+    let mut data_cache: HashMap<(u32, Option<[u16; 4]>), Vec<MatchEntry>> = HashMap::new();
 
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
@@ -445,7 +449,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         let mut keys = Vec::new();
         let mut unique_keys = HashSet::new();
         for _i in 0..COALESCE_CHUNK_SIZE {
-            if let Some(step) = steps.pop_max() {
+            if let Some(mut step) = steps.pop_max() {
                 // if we've already gotten as many items as we're going to return, only keep processing
                 // if anything we have left has the possibility of beating our worst current result
                 if contexts.len() >= contexts.max_size {
@@ -466,21 +470,42 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     .as_ref()
                     .expect("phrasematch must be set on non-root tree nodes");
 
-                for key_group in subquery.match_keys.iter() {
-                    if is_single || !data_cache.contains_key(&key_group.id) {
+                // if the previous layer gave us a bounding box, and the new layer is autocomplete-y, constrain our search
+                let prev_bounds = step.prev_state.as_ref().map(|state| adjust_bbox_zoom(
+                    state.flatbush.bounds(),
+                    step.prev_zoom,
+                    subquery.store.borrow().zoom
+                ));
+
+                for (i, key_group) in subquery.match_keys.iter().enumerate() {
+                    let range = match key_group.key.match_phrase {
+                        MatchPhrase::Range { start, end } => end - start,
+                        MatchPhrase::Exact(..) => 1
+                    };
+                    
+                    let mut override_bbox = None;
+                    if range > 1 && step.node.children.len() == 0 {
+                        if let Some(bounds) = &prev_bounds {
+                            override_bbox = Some(bounds.clone());
+                            step.override_bbox[i] = Some(bounds.clone());
+                        }
+                    }
+
+                    if is_single || !data_cache.contains_key(&(key_group.id, override_bbox)) {
                         let match_opts = if key_group.nearby_only {
                             step.match_opts.with_nearby_only()
                         } else {
                             step.match_opts.clone()
                         };
 
-                        if unique_keys.insert((key_group.id, is_single)) {
+                        if unique_keys.insert((key_group.id, is_single, override_bbox)) {
                             keys.push(KeyFetchStep {
                                 key_id: key_group.id,
                                 subquery: (*subquery).clone(),
                                 key: key_group.key.clone(),
                                 match_opts: match_opts,
                                 is_single,
+                                override_bbox
                             });
                         }
                     }
@@ -503,6 +528,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     //
                     // we're not stacking this on top of anything, and we're not stacking anything else
                     // on top of this, so we can grab a minimal set of elements here
+                    //let now = std::time::Instant::now();
                     let bigger_max = 2 * MAX_CONTEXTS;
 
                     // call tree_coalesce_single on each key group
@@ -526,21 +552,40 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     for entry in coalesced {
                         step_contexts.push(entry);
                     }
+                    //println!("{}", now.elapsed().as_secs_f64() * 1000.0);
 
                     Ok(KeyFetchResult::Single(step_contexts))
                 } else {
+                    let now = std::time::Instant::now();
+                    let match_opts = if let Some(bbox) = &key_step.override_bbox {
+                        let mut new_opts = match_opts.clone();
+                        new_opts.bbox = Some(bbox.clone());
+                        new_opts
+                    } else {
+                        key_step.match_opts.clone()
+                    };
+
                     let data: Vec<_> = key_step
                         .subquery
                         .store
                         .borrow()
                         .streaming_get_matching(
                             &key_step.key,
-                            &key_step.match_opts,
+                            &match_opts,
                             MAX_GRIDS_PER_PHRASE,
                         )?
                         .take(MAX_GRIDS_PER_PHRASE)
                         .collect();
-                    Ok(KeyFetchResult::Multi((key_step.key_id, data)))
+                    let elapsed = now.elapsed().as_secs_f64() * 1000.0;
+                    if elapsed > 10.0 {
+                        println!(
+                            "{:?} {} {:?}",
+                            key_step.subquery.store.borrow().path,
+                            elapsed,
+                            match_opts.bbox
+                        );
+                    }
+                    Ok(KeyFetchResult::Multi((key_step.key_id, key_step.override_bbox, data)))
                 }
             })
             .collect();
@@ -553,9 +598,9 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         contexts.push(context);
                     }
                 }
-                KeyFetchResult::Multi((key_id, data)) => {
+                KeyFetchResult::Multi((key_id, override_bbox, data)) => {
                     // for coalesce multi we got back cached data to be used in the next step
-                    data_cache.insert(key_id, data);
+                    data_cache.insert((key_id, override_bbox), data);
                 }
             }
         }
@@ -578,9 +623,9 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     let mut state_contexts: Vec<CoalesceContext> = Vec::new();
 
-                    for key_group in subquery.match_keys.iter() {
+                    for (i, key_group) in subquery.match_keys.iter().enumerate() {
                         let grids = data_cache
-                            .get(&key_group.id)
+                            .get(&(key_group.id, step.override_bbox[i]))
                             .expect("data must have been pre-collected");
 
                         let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
