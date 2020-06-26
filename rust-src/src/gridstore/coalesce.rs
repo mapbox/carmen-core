@@ -476,6 +476,26 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                             step.match_opts.clone()
                         };
 
+                        let is_range = match key_group.key.match_phrase {
+                            MatchPhrase::Exact(phrase_id) => false,
+                            MatchPhrase::Range { start, end } => end - start > 1,
+                        };
+
+                        if step.node.is_leaf()
+                            && subquery.store.borrow().might_be_slow()
+                            && step.relev_so_far
+                                <= 0.75
+                                    * contexts
+                                        .peek_max()
+                                        .map_or(0.0, |coalesce_context| coalesce_context.relev)
+                            && is_range == true
+                            && subquery.mask.count_ones() == 1
+                        {
+                            // this is a potentially-slow subquery that isn't likely to make our
+                            // best results better, so skip it
+                            continue;
+                        }
+
                         if unique_keys.insert((key_group.id, is_single)) {
                             keys.push(KeyFetchStep {
                                 key_id: key_group.id,
@@ -545,12 +565,12 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         .collect();
                     let elapsed = now.elapsed().as_secs_f64() * 1000.0;
                     if elapsed > 2.0 {
-                        println!(
-                            "FETCHING {:?} {} {:?}",
-                            key_step.subquery.store.borrow().path.file_name().unwrap(),
-                            elapsed,
-                            &key_step.key
-                        );
+                        // println!(
+                        //     "FETCHING {:?} {} {:?}",
+                        //     key_step.subquery.store.borrow().path.file_name().unwrap(),
+                        //     elapsed,
+                        //     &key_step.key
+                        // );
                     }
                     Ok(KeyFetchResult::Multi((key_step.key_id, data)))
                 }
@@ -592,9 +612,13 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     let mut state_contexts: Vec<CoalesceContext> = Vec::new();
 
                     for key_group in subquery.match_keys.iter() {
-                        let grids = data_cache
-                            .get(&key_group.id)
-                            .expect("data must have been pre-collected");
+                        let grids = match data_cache.get(&key_group.id) {
+                            Some(data) => data,
+                            None => {
+                                // we must have skipped collecting this data
+                                continue;
+                            }
+                        };
 
                         let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
                             ConstrainedPriorityQueue::new(MAX_CONTEXTS);
@@ -737,33 +761,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             }
 
             for step in next_steps {
-                let phrasematch = step.node.phrasematch.expect("phrasematch required");
-                let mut is_range: bool = false;
-                for key in &phrasematch.match_keys {
-                    let (start, end) = match key.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => (0, phrase_id),
-                        MatchPhrase::Range { start, end } => (start, end),
-                    };
-
-                    let range = end - start;
-                    if range > 1 {
-                        is_range = true;
-                        break;
-                    }
-                }
-
-                if step.node.is_leaf()
-                    && phrasematch.store.borrow().might_be_slow()
-                    && step.relev_so_far
-                        <= 0.75
-                            * contexts
-                                .peek_max()
-                                .map_or(0.0, |coalesce_context| coalesce_context.relev)
-                    && is_range == true
-                    && phrasematch.mask.count_ones() == 1
-                {
-                    continue;
-                }
                 steps.push(step);
             }
         }
