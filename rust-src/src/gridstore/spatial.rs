@@ -598,10 +598,6 @@ pub fn scoredist(mut zoom: u16, mut distance: f64, mut score: u8, radius: f64) -
     ((6. * E_POW[score as usize] / E_POW[7]) + 1.) / dist_ratio
 }
 
-pub fn bboxes_intersect(bbox1: [u16; 4], bbox2: [u16; 4]) -> bool {
-    !(bbox1[0] > bbox2[2] || bbox1[2] < bbox2[0] || bbox1[1] > bbox2[3] || bbox1[3] < bbox2[1])
-}
-
 #[inline(always)]
 pub fn adjust_bbox_zoom(bbox: [u16; 4], source_z: u16, target_z: u16) -> [u16; 4] {
     if target_z < source_z {
