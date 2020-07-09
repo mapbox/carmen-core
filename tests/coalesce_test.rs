@@ -180,7 +180,8 @@ fn coalesce_single_test_language_penalty() {
     builder.finish().unwrap();
 
     let store =
-        GridStore::new_with_options(directory.path(), 14, 1, 1., global_bbox_for_zoom(14), 1.0).unwrap();
+        GridStore::new_with_options(directory.path(), 14, 1, 1., global_bbox_for_zoom(14), 1.0)
+            .unwrap();
     let subquery = PhrasematchSubquery {
         store: &store,
         idx: 1,
@@ -585,7 +586,8 @@ fn coalesce_single_languages_test() {
     builder.finish().unwrap();
 
     let store =
-        GridStore::new_with_options(directory.path(), 6, 1, 200., global_bbox_for_zoom(6), 1.0).unwrap();
+        GridStore::new_with_options(directory.path(), 6, 1, 200., global_bbox_for_zoom(6), 1.0)
+            .unwrap();
     // Test query with all languages
     println!("Coalesce single - all languages");
     let subquery = PhrasematchSubquery {

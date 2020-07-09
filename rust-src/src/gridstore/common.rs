@@ -462,7 +462,7 @@ impl Default for MatchKeyWithId {
             id: 0,
             // default is 2 because 1 has special behaviors that we might not want to opt into
             // in the typical test case
-            phrase_length: 2
+            phrase_length: 2,
         }
     }
 }

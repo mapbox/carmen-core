@@ -292,7 +292,16 @@ impl GridStore {
             None => HashSet::new(),
         };
 
-        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, bboxes, max_score })
+        Ok(GridStore {
+            db,
+            path,
+            bin_boundaries,
+            zoom,
+            type_id,
+            coalesce_radius,
+            bboxes,
+            max_score,
+        })
     }
 
     #[inline(never)]

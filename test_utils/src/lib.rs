@@ -80,7 +80,7 @@ pub fn create_store(
             type_id,
             coalesce_radius,
             global_bbox_for_zoom(zoom),
-            1.0
+            1.0,
         )
         .unwrap(),
         idx,
@@ -254,7 +254,7 @@ pub fn prepare_phrasematches(
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
                                     global_bbox_for_zoom(placeholder.store.zoom),
-                                    1.0
+                                    1.0,
                                 )
                                 .unwrap();
                                 Arc::new(gs)
@@ -317,7 +317,7 @@ pub fn prepare_stackable_phrasematches(
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
                                     global_bbox_for_zoom(placeholder.store.zoom),
-                                    1.0
+                                    1.0,
                                 )
                                 .unwrap();
                                 Arc::new(gs)

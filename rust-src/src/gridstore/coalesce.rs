@@ -6,12 +6,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use failure::Error;
-use static_bushes::{FlatBush, FlatBushBuilder};
 use indexmap::map::{Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
+use static_bushes::{FlatBush, FlatBushBuilder};
 
 use crate::gridstore::common::*;
 use crate::gridstore::spatial::adjust_bbox_zoom;
@@ -382,10 +382,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
     #[inline(always)]
     fn cmp_key(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>) {
         let subquery = self.node.phrasematch.expect("phrasematch required");
-        (
-            OrderedFloat(self.node.max_relev),
-            OrderedFloat(subquery.store.borrow().max_score)
-        )
+        (OrderedFloat(self.node.max_relev), OrderedFloat(subquery.store.borrow().max_score))
     }
 }
 
@@ -498,19 +495,21 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                             MatchPhrase::Range { start, end } => end - start > 1,
                         };
 
-                        if is_range == true && subquery.mask.count_ones() == 1
-                        {
+                        if is_range == true && subquery.mask.count_ones() == 1 {
                             if subquery.store.borrow().might_be_slow()
                                 && step.node.is_leaf()
                                 && step.possible_relev
-                                <= 0.75
-                                    * contexts
-                                        .peek_max()
-                                        .map_or(0.0, |coalesce_context| coalesce_context.relev) {
+                                    <= 0.75
+                                        * contexts
+                                            .peek_max()
+                                            .map_or(0.0, |coalesce_context| coalesce_context.relev)
+                            {
                                 // this is a potentially-slow leaf subquery in a high-zoom index
                                 // that isn't likely to make our best results better, so skip it
                                 continue;
-                            } else if key_group.phrase_length == 1 && !unique_keys.contains(&(key_group.id, is_single)) {
+                            } else if key_group.phrase_length == 1
+                                && !unique_keys.contains(&(key_group.id, is_single))
+                            {
                                 // even though this isn't a leaf node or a high-zoom index, it's a single-letter query,
                                 // which could be *really* slow and is pretty low-information, so set a quota to constrain
                                 // the total number of these we can end up fetching
@@ -932,9 +931,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let store1 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,

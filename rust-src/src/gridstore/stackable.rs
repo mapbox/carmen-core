@@ -288,12 +288,24 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
-        let store2 =
-            GridStore::new_with_options(directory.path(), 14, 2, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let store1 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
+        let store2 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            2,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,
@@ -404,9 +416,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
         let mut a1_bmask: FixedBitSet = FixedBitSet::with_capacity(128);
         a1_bmask.insert(0);
         a1_bmask.insert(1);
@@ -461,9 +479,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,
@@ -511,9 +535,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,

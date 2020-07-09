@@ -195,9 +195,15 @@ mod tests {
 
         builder.finish().unwrap();
 
-        let reader =
-            GridStore::new_with_options(directory.path(), 14, 0, 1000., global_bbox_for_zoom(14), 1.0)
-                .unwrap();
+        let reader = GridStore::new_with_options(
+            directory.path(),
+            14,
+            0,
+            1000.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let search_key =
             MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 2 }, lang_set: 1 };
@@ -515,7 +521,8 @@ mod tests {
             14,
             0,
             200.,
-            global_bbox_for_zoom(14), 1.0,
+            global_bbox_for_zoom(14),
+            1.0,
         )
         .unwrap();
         let reader_without_boundaries = GridStore::new_with_options(
@@ -523,7 +530,8 @@ mod tests {
             14,
             0,
             200.,
-            global_bbox_for_zoom(14), 1.0,
+            global_bbox_for_zoom(14),
+            1.0,
         )
         .unwrap();
 
