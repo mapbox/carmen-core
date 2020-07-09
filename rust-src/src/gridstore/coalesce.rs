@@ -933,7 +933,7 @@ mod test {
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
         let store1 =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
+            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
                 .unwrap();
 
         let a1 = PhrasematchSubquery {
@@ -943,9 +943,9 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
         };
 
@@ -956,9 +956,9 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
+                ..MatchKeyWithId::default()
             }],
         };
         let phrasematch_results = vec![a1, a2];

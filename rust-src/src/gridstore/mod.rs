@@ -196,7 +196,7 @@ mod tests {
         builder.finish().unwrap();
 
         let reader =
-            GridStore::new_with_options(directory.path(), 14, 0, 1000., global_bbox_for_zoom(14))
+            GridStore::new_with_options(directory.path(), 14, 0, 1000., global_bbox_for_zoom(14), 1.0)
                 .unwrap();
 
         let search_key =
@@ -515,7 +515,7 @@ mod tests {
             14,
             0,
             200.,
-            global_bbox_for_zoom(14),
+            global_bbox_for_zoom(14), 1.0,
         )
         .unwrap();
         let reader_without_boundaries = GridStore::new_with_options(
@@ -523,7 +523,7 @@ mod tests {
             14,
             0,
             200.,
-            global_bbox_for_zoom(14),
+            global_bbox_for_zoom(14), 1.0,
         )
         .unwrap();
 
@@ -663,12 +663,12 @@ mod tests {
                 non_overlapping_indexes: FixedBitSet::with_capacity(128),
                 weight: 1.,
                 match_keys: vec![MatchKeyWithId {
-                    nearby_only: false,
                     id: 0,
                     key: MatchKey {
                         match_phrase: MatchPhrase::Range { start: range.0, end: range.1 },
                         lang_set: 1,
                     },
+                    ..MatchKeyWithId::default()
                 }],
                 mask: 1 << 0,
             };

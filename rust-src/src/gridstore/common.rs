@@ -56,6 +56,12 @@ pub struct MatchKey {
     pub lang_set: u128,
 }
 
+impl Default for MatchKey {
+    fn default() -> Self {
+        MatchKey { match_phrase: MatchPhrase::Range { start: 0, end: 1 }, lang_set: 0 }
+    }
+}
+
 impl MatchKey {
     pub fn write_start_to(
         &self,
@@ -446,6 +452,19 @@ pub struct MatchKeyWithId {
     pub nearby_only: bool,
     pub id: u32,
     pub phrase_length: usize,
+}
+
+impl Default for MatchKeyWithId {
+    fn default() -> Self {
+        MatchKeyWithId {
+            key: MatchKey::default(),
+            nearby_only: false,
+            id: 0,
+            // default is 2 because 1 has special behaviors that we might not want to opt into
+            // in the typical test case
+            phrase_length: 2
+        }
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
