@@ -27,7 +27,8 @@ pub struct GridStore {
     pub zoom: u16,
     pub type_id: u16,
     pub coalesce_radius: f64,
-    pub bbox: [u16; 4],
+    pub bboxes: Vec<[u16; 4]>,
+    pub max_score: f64,
 }
 
 #[inline]
@@ -253,11 +254,11 @@ impl<T: Iterator<Item = MatchEntry>> Eq for QueueElement<T> {}
 
 impl GridStore {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        GridStore::new_with_options(path, 6, 0, 0.0, [0, 0, 63, 63])
+        GridStore::new_with_options(path, 6, 0, 0.0, vec![[0, 0, 63, 63]], 0.0)
     }
 
     pub fn might_be_slow(&self) -> bool {
-        return if self.zoom == 14 { true } else { false };
+        return self.zoom >= 14;
     }
 
     pub fn new_with_options<P: AsRef<Path>>(
@@ -265,7 +266,8 @@ impl GridStore {
         zoom: u16,
         type_id: u16,
         coalesce_radius: f64,
-        bbox: [u16; 4],
+        bboxes: Vec<[u16; 4]>,
+        max_score: f64,
     ) -> Result<Self, Error> {
         let path = path.as_ref().to_owned();
         let mut opts = Options::default();
@@ -290,7 +292,16 @@ impl GridStore {
             None => HashSet::new(),
         };
 
-        Ok(GridStore { db, path, bin_boundaries, zoom, type_id, coalesce_radius, bbox })
+        Ok(GridStore {
+            db,
+            path,
+            bin_boundaries,
+            zoom,
+            type_id,
+            coalesce_radius,
+            bboxes,
+            max_score,
+        })
     }
 
     #[inline(never)]

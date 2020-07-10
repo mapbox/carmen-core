@@ -288,12 +288,24 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
-                .unwrap();
-        let store2 =
-            GridStore::new_with_options(directory.path(), 14, 2, 200., global_bbox_for_zoom(14))
-                .unwrap();
+        let store1 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
+        let store2 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            2,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,
@@ -301,9 +313,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
+                ..MatchKeyWithId::default()
             }],
             mask: 2,
         };
@@ -314,9 +326,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -327,9 +339,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -404,9 +416,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
         let mut a1_bmask: FixedBitSet = FixedBitSet::with_capacity(128);
         a1_bmask.insert(0);
         a1_bmask.insert(1);
@@ -420,9 +438,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -433,9 +451,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -461,9 +479,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,
@@ -471,9 +495,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -484,9 +508,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -511,9 +535,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
-                .unwrap();
+        let store = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store,
@@ -521,9 +551,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 0,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };
@@ -534,9 +564,9 @@ mod test {
             non_overlapping_indexes: FixedBitSet::with_capacity(128),
             weight: 0.5,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
             mask: 1,
         };

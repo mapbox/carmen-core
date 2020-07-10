@@ -227,7 +227,7 @@ tape('Coalesce single valid stack - Valid inputs', (t) => {
         ]
     );
     builder.finish();
-    const readerOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bbox: globalBboxForZoom(14) };
+    const readerOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bboxes: globalBboxForZoom(14), max_score: 1 };
 	const reader = new addon.GridStore(tmpDir.name, readerOpts);
 
     const valid_stack = [{
@@ -246,7 +246,8 @@ tape('Coalesce single valid stack - Valid inputs', (t) => {
         idx: 1,
         zoom: 14,
         mask: 1 << 0,
-        id: 0
+        id: 0,
+        phrase: 'hey'
     }];
 
     addon.coalesce(valid_stack, { zoom: 14 }, (err, res) => {
@@ -260,7 +261,7 @@ tape('Coalesce single valid stack - Valid inputs', (t) => {
                     mask: 1,
                     distance: 0,
                     scoredist: 1,
-                    phrasematch_id: 0,
+                    phrasematch_id: 0
                 }
             ], 'Ok, finds the right grid entry');
         t.equal(res.length, 3, 'Result set has 3 grid entries');
@@ -277,7 +278,7 @@ tape('Coalesce multi valid stack - Valid inputs', (t) => {
         ]
     );
     builder1.finish();
-    const reader1Opts = { idx: 0, zoom: 1, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bbox: globalBboxForZoom(1) };
+    const reader1Opts = { idx: 0, zoom: 1, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bboxes: globalBboxForZoom(1), max_score: 1 };
 	const reader1 = new addon.GridStore(tmpDir1.name, reader1Opts);
 
     const tmpDir2 = tmp.dirSync();
@@ -289,7 +290,7 @@ tape('Coalesce multi valid stack - Valid inputs', (t) => {
         ]
     );
     builder2.finish();
-    const reader2Opts = { idx: 1, zoom: 2, non_overlapping_indexes: Array.from(new Set()), type_id: 1, coalesce_radius: 200, bbox: globalBboxForZoom(2) };
+    const reader2Opts = { idx: 1, zoom: 2, non_overlapping_indexes: Array.from(new Set()), type_id: 1, coalesce_radius: 200, bboxes: globalBboxForZoom(2), max_score: 1 };
 	const reader2 = new addon.GridStore(tmpDir2.name, reader2Opts);
 
     const valid_coalesce_multi = [{
@@ -308,7 +309,8 @@ tape('Coalesce multi valid stack - Valid inputs', (t) => {
         idx: 0,
         zoom: 1,
         mask: 1 << 1,
-        id: 0
+        id: 0,
+        phrase: 'hey'
     },{
         store: reader2,
 		non_overlapping_indexes: reader2Opts.non_overlapping_indexes,
@@ -325,7 +327,8 @@ tape('Coalesce multi valid stack - Valid inputs', (t) => {
         idx: 1,
         zoom: 2,
         mask: 1 << 0,
-        id: 1
+        id: 1,
+        phrase: 'hey'
     }];
     addon.coalesce(valid_coalesce_multi, { zoom: 2 }, (err, res) => {
         t.deepEqual(res[0].entries[0].grid_entry, { relev: 0.5, score: 3, x: 2, y: 2, id: 2, source_phrase_hash: 0 }, '1st result highest score from the higher zoom index');
@@ -361,7 +364,8 @@ tape('lang_set >= 128', (t) => {
         idx: 1,
         zoom: 14,
         mask: 1 << 0,
-        id: 0
+        id: 0,
+        phrase: 'hey'
     }];
 
     addon.coalesce(lang_set_stack, { zoom: 14 }, (err, res) => {
@@ -424,9 +428,9 @@ tape('Bin boundaries', (t) => {
     builderWithBoundaries.finish();
     builderWithoutBoundaries.finish();
 
-    const readerWithBoundariesOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bbox: globalBboxForZoom(14) };
+    const readerWithBoundariesOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bboxes: globalBboxForZoom(14), max_score: 1 };
 	const readerWithBoundaries = new addon.GridStore(directoryWithBoundaries.name, readerWithBoundariesOpts);
-    const readerWithoutBoundariesOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bbox: globalBboxForZoom(14) };
+    const readerWithoutBoundariesOpts = { idx: 1, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bboxes: globalBboxForZoom(14), max_score: 1 };
 	const readerWithoutBoundaries = new addon.GridStore(directoryWithoutBoundaries.name, readerWithoutBoundariesOpts);
 
     const findRange = (prefix) => {
@@ -460,7 +464,8 @@ tape('Bin boundaries', (t) => {
             idx: 1,
             zoom: 14,
             mask: 1,
-            id: 0
+            id: 0,
+            phrase: 'hey'
         };
         let stack = [subquery];
         let match_opts = {
@@ -486,7 +491,7 @@ tape('Deserialize phrasematch results', (t) => {
         ]
     );
     builder.finish();
-    const storeOpts = { idx: 0, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bbox: globalBboxForZoom(14) };
+    const storeOpts = { idx: 0, zoom: 14, non_overlapping_indexes: Array.from(new Set()), type_id: 0, coalesce_radius: 200, bboxes: globalBboxForZoom(14), max_score: 1 };
 	const store = new addon.GridStore(tmpDir.name, storeOpts);
     let phrasematchResults = [
         new Phrasematch(store, ['main', 'street'], 'main street', 1, [0, 2], 1, 0, 14, 6, 1, false, false, false, 0, ['main', 'street'], 0, 14, [0], 1, 0, [])
@@ -497,7 +502,7 @@ tape('Deserialize phrasematch results', (t) => {
 
 function globalBboxForZoom(zoom) {
     let max = (1 << zoom) - 1;
-    return [0, 0, max, max];
+    return [[0, 0, max, max]];
 }
 
 function Phrasematch(store, subquery, phrase, weight, phrase_id_range, scorefactor, prefix, mask, zoom, editMultiplier, prox_match, cat_match, partial_number, subquery_edit_distance, original_phrase, original_phrase_ender, original_phrase_mask, languages, id, idx, non_overlapping_indexes) {

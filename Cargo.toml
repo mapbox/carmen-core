@@ -23,6 +23,7 @@ rayon = "1.3.0"
 fixedbitset = "0.3.0"
 generational-arena = "0.2.7"
 indexmap = "1.3.2"
+static-bushes = { git = "https://github.com/apendleton/static-bushes.git", rev = "c4231f2e40c16be7b00bd48d2f8e444b159d6ef0" }
 
 [dev-dependencies]
 tempfile = "3.0"

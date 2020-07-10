@@ -11,9 +11,10 @@ use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
+use static_bushes::{FlatBush, FlatBushBuilder};
 
 use crate::gridstore::common::*;
-use crate::gridstore::spatial::{adjust_bbox_zoom, bboxes_intersect};
+use crate::gridstore::spatial::adjust_bbox_zoom;
 use crate::gridstore::stackable::{stackable, StackableNode, StackableTree};
 use crate::gridstore::store::GridStore;
 
@@ -336,13 +337,29 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
     Ok(contexts)
 }
 
-type TreeCoalesceState = HashMap<(u16, u16), Vec<CoalesceContext>>;
+struct TreeCoalesceState {
+    contexts: Vec<CoalesceContext>,
+    flatbush: FlatBush<u16>,
+}
+
+impl TreeCoalesceState {
+    fn new(contexts: Vec<CoalesceContext>) -> TreeCoalesceState {
+        let mut builder: FlatBushBuilder<u16> = FlatBushBuilder::new();
+        for context in contexts.iter() {
+            let (x, y) = (context.entries[0].grid_entry.x, context.entries[0].grid_entry.y);
+            builder.add(&[x, y, x, y]);
+        }
+        let flatbush = builder.finish();
+        TreeCoalesceState { contexts, flatbush }
+    }
+}
+
 struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     node: &'a StackableNode<'a, T>,
     prev_state: Option<Arc<TreeCoalesceState>>,
     prev_zoom: u16,
     match_opts: MatchOpts,
-    relev_so_far: f64,
+    possible_relev: f64,
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
@@ -351,7 +368,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         prev_state: Option<Arc<TreeCoalesceState>>,
         prev_zoom: u16,
         match_opts: &MatchOpts,
-        relev_so_far: f64,
+        possible_relev: f64,
     ) -> CoalesceStep<'a, T> {
         let subquery = node.phrasematch.expect("phrasematch required");
         let match_opts = if match_opts.zoom == subquery.store.borrow().zoom {
@@ -359,13 +376,19 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts, relev_so_far }
+        CoalesceStep { node, prev_state, prev_zoom, match_opts, possible_relev }
+    }
+
+    #[inline(always)]
+    fn cmp_key(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>) {
+        let subquery = self.node.phrasematch.expect("phrasematch required");
+        (OrderedFloat(self.node.max_relev), OrderedFloat(subquery.store.borrow().max_score))
     }
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> Ord for CoalesceStep<'_, T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        OrderedFloat(self.node.max_relev).cmp(&OrderedFloat(other.node.max_relev))
+        self.cmp_key().cmp(&other.cmp_key())
     }
 }
 impl<T: Borrow<GridStore> + Clone + Debug> PartialOrd for CoalesceStep<'_, T> {
@@ -375,7 +398,7 @@ impl<T: Borrow<GridStore> + Clone + Debug> PartialOrd for CoalesceStep<'_, T> {
 }
 impl<T: Borrow<GridStore> + Clone + Debug> PartialEq for CoalesceStep<'_, T> {
     fn eq(&self, other: &Self) -> bool {
-        OrderedFloat(self.node.max_relev) == OrderedFloat(other.node.max_relev)
+        self.cmp_key() == other.cmp_key()
     }
 }
 impl<T: Borrow<GridStore> + Clone + Debug> Eq for CoalesceStep<'_, T> {}
@@ -404,6 +427,7 @@ fn penalize_multi_context(context: &mut CoalesceContext) {
 }
 
 pub const COALESCE_CHUNK_SIZE: usize = 8;
+pub const SHORT_RANGE_QUOTA: usize = 8;
 
 pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     stack_tree: &StackableTree<T>,
@@ -416,10 +440,17 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     let mut steps: MinMaxHeap<CoalesceStep<T>> = MinMaxHeap::new();
     let mut data_cache: HashMap<u32, Vec<MatchEntry>> = HashMap::new();
 
+    let mut short_range_count: usize = 0;
+
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
             // push the first set of nodes into the queue
-            steps.push(CoalesceStep::new(&node, None, 0, match_opts, 0.0));
+            let weight = node
+                .phrasematch
+                .as_ref()
+                .expect("phrasematch must be set on non-root tree nodes")
+                .weight;
+            steps.push(CoalesceStep::new(&node, None, 0, match_opts, weight));
         }
     }
 
@@ -458,6 +489,37 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                         } else {
                             step.match_opts.clone()
                         };
+
+                        let is_range = match key_group.key.match_phrase {
+                            MatchPhrase::Exact(_) => false,
+                            MatchPhrase::Range { start, end } => end - start > 1,
+                        };
+
+                        if is_range == true && subquery.mask.count_ones() == 1 {
+                            if subquery.store.borrow().might_be_slow()
+                                && step.node.is_leaf()
+                                && step.possible_relev
+                                    <= 0.75
+                                        * contexts
+                                            .peek_max()
+                                            .map_or(0.0, |coalesce_context| coalesce_context.relev)
+                            {
+                                // this is a potentially-slow leaf subquery in a high-zoom index
+                                // that isn't likely to make our best results better, so skip it
+                                continue;
+                            } else if key_group.phrase_length == 1
+                                && !unique_keys.contains(&(key_group.id, is_single))
+                            {
+                                // even though this isn't a leaf node or a high-zoom index, it's a single-letter query,
+                                // which could be *really* slow and is pretty low-information, so set a quota to constrain
+                                // the total number of these we can end up fetching
+                                if short_range_count < SHORT_RANGE_QUOTA {
+                                    short_range_count += 1;
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
 
                         if unique_keys.insert((key_group.id, is_single)) {
                             keys.push(KeyFetchStep {
@@ -562,13 +624,16 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     let scale_factor: u16 = 1 << (subquery.store.borrow().zoom - step.prev_zoom);
 
-                    let mut state: TreeCoalesceState = TreeCoalesceState::new();
-                    let mut state_bbox: [u16; 4] = [u16::MAX, u16::MAX, 0, 0];
+                    let mut state_contexts: Vec<CoalesceContext> = Vec::new();
 
                     for key_group in subquery.match_keys.iter() {
-                        let grids = data_cache
-                            .get(&key_group.id)
-                            .expect("data must have been pre-collected");
+                        let grids = match data_cache.get(&key_group.id) {
+                            Some(data) => data,
+                            None => {
+                                // we must have skipped collecting this data
+                                continue;
+                            }
+                        };
 
                         let mut step_contexts: ConstrainedPriorityQueue<CoalesceContext> =
                             ConstrainedPriorityQueue::new(MAX_CONTEXTS);
@@ -581,48 +646,38 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     grid.grid_entry.y / scale_factor,
                                 );
 
-                                if let Some(already_coalesced) = prev_state.get(&prev_zoom_xy) {
-                                    let entry = grid_to_coalesce_entry(
-                                        &grid,
-                                        &subquery,
-                                        &step.match_opts,
-                                        key_group.id,
-                                    );
-                                    for parent_context in already_coalesced {
-                                        let mut new_context = parent_context.clone();
-                                        new_context.entries.insert(0, entry.clone());
+                                let entry = grid_to_coalesce_entry(
+                                    &grid,
+                                    &subquery,
+                                    &step.match_opts,
+                                    key_group.id,
+                                );
 
-                                        new_context.mask = new_context.mask | subquery.mask;
-                                        new_context.relev += entry.grid_entry.relev;
-                                        if new_context.relev > relev_so_far {
-                                            relev_so_far = new_context.relev;
-                                        }
+                                let already_coalesced = prev_state.flatbush.search_range(
+                                    prev_zoom_xy.0,
+                                    prev_zoom_xy.1,
+                                    prev_zoom_xy.0,
+                                    prev_zoom_xy.1,
+                                );
+                                for parent_id in already_coalesced {
+                                    let parent_context = &prev_state.contexts[parent_id];
+                                    let mut new_context = parent_context.clone();
+                                    new_context.entries.insert(0, entry.clone());
 
-                                        let mut out_context = new_context.clone();
-                                        penalize_multi_context(&mut out_context);
-                                        step_contexts.push(out_context);
+                                    new_context.mask = new_context.mask | subquery.mask;
+                                    new_context.relev += entry.grid_entry.relev;
+                                    if new_context.relev > relev_so_far {
+                                        relev_so_far = new_context.relev;
+                                    }
 
-                                        if step.node.children.len() > 0 {
-                                            // only bother with getting ready to recurse if we have any children to
-                                            // operate on
-                                            let state_vec = state
-                                                .entry((grid.grid_entry.x, grid.grid_entry.y))
-                                                .or_insert_with(|| vec![]);
-                                            state_vec.push(new_context);
+                                    let mut out_context = new_context.clone();
+                                    penalize_multi_context(&mut out_context);
+                                    step_contexts.push(out_context);
 
-                                            if grid.grid_entry.x < state_bbox[0] {
-                                                state_bbox[0] = grid.grid_entry.x;
-                                            }
-                                            if grid.grid_entry.y < state_bbox[1] {
-                                                state_bbox[1] = grid.grid_entry.y;
-                                            }
-                                            if grid.grid_entry.x > state_bbox[2] {
-                                                state_bbox[2] = grid.grid_entry.x;
-                                            }
-                                            if grid.grid_entry.y > state_bbox[3] {
-                                                state_bbox[3] = grid.grid_entry.y;
-                                            }
-                                        }
+                                    if step.node.children.len() > 0 {
+                                        // only bother with getting ready to recurse if we have any children to
+                                        // operate on
+                                        state_contexts.push(new_context);
                                     }
                                 }
                             }
@@ -650,44 +705,49 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 penalize_multi_context(&mut out_context);
                                 step_contexts.push(out_context);
 
-                                let state_vec = state
-                                    .entry((grid.grid_entry.x, grid.grid_entry.y))
-                                    .or_insert_with(|| vec![]);
-                                state_vec.push(context);
-
-                                if grid.grid_entry.x < state_bbox[0] {
-                                    state_bbox[0] = grid.grid_entry.x;
-                                }
-                                if grid.grid_entry.y < state_bbox[1] {
-                                    state_bbox[1] = grid.grid_entry.y;
-                                }
-                                if grid.grid_entry.x > state_bbox[2] {
-                                    state_bbox[2] = grid.grid_entry.x;
-                                }
-                                if grid.grid_entry.y > state_bbox[3] {
-                                    state_bbox[3] = grid.grid_entry.y;
-                                }
+                                state_contexts.push(context);
                             }
                         }
                         phrasematch_contexts.extend(step_contexts.into_iter());
                     }
 
                     let mut next_steps = Vec::with_capacity(step.node.children.len());
-                    if state.len() > 0 {
-                        let state = Arc::new(state);
+                    if state_contexts.len() > 0 {
+                        let state = Arc::new(TreeCoalesceState::new(state_contexts));
                         let current_zoom = subquery.store.borrow().zoom;
                         for child_idx in step.node.children.iter() {
                             if let Some(child) = stack_tree.arena.get(*child_idx) {
-                                let child_zoom = child.phrasematch.unwrap().store.borrow().zoom;
-                                let zoomed_bbox = if child_zoom == current_zoom {
-                                    state_bbox
+                                let child_store = child.phrasematch.unwrap().store.borrow();
+                                let child_zoom = child_store.zoom;
+
+                                let zoomed_bboxes: Vec<_>;
+                                let child_bboxes = if child_zoom == current_zoom {
+                                    &child_store.bboxes
                                 } else {
-                                    adjust_bbox_zoom(state_bbox, current_zoom, child_zoom)
+                                    zoomed_bboxes = child_store
+                                        .bboxes
+                                        .iter()
+                                        .map(|bbox| {
+                                            adjust_bbox_zoom(*bbox, child_zoom, current_zoom)
+                                        })
+                                        .collect();
+                                    &zoomed_bboxes
                                 };
-                                let child_bbox = child.phrasematch.unwrap().store.borrow().bbox;
-                                if !bboxes_intersect(child_bbox, zoomed_bbox) {
+
+                                // the index might have multiple bounding boxes; one of them has to overlap
+                                // for us to bother continuing
+                                let overlaps = child_bboxes.iter().any(|bbox| {
+                                    state
+                                        .flatbush
+                                        .search_range(bbox[0], bbox[1], bbox[2], bbox[3])
+                                        .next()
+                                        .is_some()
+                                });
+
+                                if !overlaps {
                                     continue;
                                 }
+
                                 next_steps.push(CoalesceStep::new(
                                     &child,
                                     Some(state.clone()),
@@ -711,33 +771,6 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
             }
 
             for step in next_steps {
-                let phrasematch = step.node.phrasematch.expect("phrasematch required");
-                let mut is_range: bool = false;
-                for key in &phrasematch.match_keys {
-                    let (start, end) = match key.key.match_phrase {
-                        MatchPhrase::Exact(phrase_id) => (0, phrase_id),
-                        MatchPhrase::Range { start, end } => (start, end),
-                    };
-
-                    let range = end - start;
-                    if range > 1 {
-                        is_range = true;
-                        break;
-                    }
-                }
-
-                if step.node.is_leaf()
-                    && phrasematch.store.borrow().might_be_slow()
-                    && step.relev_so_far
-                        <= 0.75
-                            * contexts
-                                .peek_max()
-                                .map_or(0.0, |coalesce_context| coalesce_context.relev)
-                    && is_range == true
-                    && phrasematch.mask.count_ones() == 1
-                {
-                    continue;
-                }
                 steps.push(step);
             }
         }
@@ -851,15 +884,7 @@ pub fn collapse_phrasematches<T: Borrow<GridStore> + Clone + Debug>(
 
         match phrasematch_map.entry(group_hash) {
             IndexMapEntry::Vacant(entry) => {
-                let pm = PhrasematchSubquery {
-                    store: phrasematch.store,
-                    idx: phrasematch.idx,
-                    non_overlapping_indexes: phrasematch.non_overlapping_indexes,
-                    weight: phrasematch.weight,
-                    mask: phrasematch.mask,
-                    match_keys: phrasematch.match_keys,
-                };
-                entry.insert(pm);
+                entry.insert(phrasematch);
             }
             IndexMapEntry::Occupied(mut grouped_phrasematch) => {
                 grouped_phrasematch.get_mut().match_keys.push(phrasematch.match_keys[0].clone());
@@ -906,9 +931,15 @@ mod test {
         ];
         builder.insert(&key, entries).expect("Unable to insert record");
         builder.finish().unwrap();
-        let store1 =
-            GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14))
-                .unwrap();
+        let store1 = GridStore::new_with_options(
+            directory.path(),
+            14,
+            1,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let a1 = PhrasematchSubquery {
             store: &store1,
@@ -917,9 +948,9 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 1,
+                ..MatchKeyWithId::default()
             }],
         };
 
@@ -930,9 +961,9 @@ mod test {
             weight: 0.5,
             mask: 1,
             match_keys: vec![MatchKeyWithId {
-                nearby_only: false,
                 key: MatchKey { match_phrase: Range { start: 0, end: 1 }, lang_set: 0 },
                 id: 2,
+                ..MatchKeyWithId::default()
             }],
         };
         let phrasematch_results = vec![a1, a2];
