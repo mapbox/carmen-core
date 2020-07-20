@@ -34,31 +34,32 @@ pub fn benchmark(c: &mut Criterion) {
         );
     }
 
-    let to_bench = vec![
-        ("stackable_us_address", "us-address-forward.ljson.lz4"),
-        ("stackable_us_address_postcode", "us-address-postcode.ljson.lz4"),
-        (
-            "stackable_us-address_postcode_place_region",
-            "us-address-postcode-place-region.ljson.lz4",
-        ),
-    ];
-
-    for (label, file) in to_bench {
-        c.bench(
-            label,
-            Benchmark::new(label, move |b: &mut Bencher| {
-                let queries = prepare_stackable_phrasematches(file);
-                let collapsed: Vec<_> =
-                    queries.iter().map(|q| collapse_phrasematches(q.to_vec())).collect();
-
-                let mut cycle = collapsed.iter().cycle();
-
-                b.iter(|| {
-                    let pm = cycle.next().unwrap();
-                    stackable(&pm)
-                })
-            })
-            .sample_size(20),
-        );
-    }
+    // these need to be regenerated
+    // let to_bench = vec![
+    //     ("stackable_us_address", "us-address-forward.ljson.lz4"),
+    //     ("stackable_us_address_postcode", "us-address-postcode.ljson.lz4"),
+    //     (
+    //         "stackable_us-address_postcode_place_region",
+    //         "us-address-postcode-place-region.ljson.lz4",
+    //     ),
+    // ];
+    //
+    // for (label, file) in to_bench {
+    //     c.bench(
+    //         label,
+    //         Benchmark::new(label, move |b: &mut Bencher| {
+    //             let queries = prepare_stackable_phrasematches(file);
+    //             let collapsed: Vec<_> =
+    //                 queries.iter().map(|q| collapse_phrasematches(q.to_vec())).collect();
+    //
+    //             let mut cycle = collapsed.iter().cycle();
+    //
+    //             b.iter(|| {
+    //                 let pm = cycle.next().unwrap();
+    //                 stackable(&pm)
+    //             })
+    //         })
+    //         .sample_size(20),
+    //     );
+    // }
 }

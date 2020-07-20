@@ -161,7 +161,7 @@ pub fn ensure_downloaded(datafile: &str) -> PathBuf {
         let client = S3Client::new(Region::UsEast1);
         let request = GetObjectRequest {
             bucket: "mapbox".to_owned(),
-            key: ("playground/apendleton/gridstore_bench_v2/".to_owned() + datafile),
+            key: ("playground/apendleton/gridstore_bench_v3/".to_owned() + datafile),
             ..Default::default()
         };
 
@@ -208,6 +208,8 @@ pub struct GridStorePlaceholder {
     zoom: u16,
     type_id: u16,
     coalesce_radius: f64,
+    bboxes: Vec<[u16; 4]>,
+    max_score: f64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -253,8 +255,8 @@ pub fn prepare_phrasematches(
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
-                                    global_bbox_for_zoom(placeholder.store.zoom),
-                                    1.0,
+                                    placeholder.store.bboxes.clone(),
+                                    placeholder.store.max_score,
                                 )
                                 .unwrap();
                                 Arc::new(gs)
@@ -316,8 +318,8 @@ pub fn prepare_stackable_phrasematches(
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
-                                    global_bbox_for_zoom(placeholder.store.zoom),
-                                    1.0,
+                                    placeholder.store.bboxes.clone(),
+                                    placeholder.store.max_score,
                                 )
                                 .unwrap();
                                 Arc::new(gs)
