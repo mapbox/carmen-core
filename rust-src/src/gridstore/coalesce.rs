@@ -436,7 +436,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     debug_assert!(stack_tree.root.phrasematch.is_none(), "no phrasematch on root node");
 
     let mut contexts: ConstrainedPriorityQueue<CoalesceContext> =
-        ConstrainedPriorityQueue::new(MAX_CONTEXTS * 20);
+        ConstrainedPriorityQueue::new(MAX_CONTEXTS * 10);
     let mut steps: MinMaxHeap<CoalesceStep<T>> = MinMaxHeap::new();
     let mut data_cache: HashMap<u32, Vec<MatchEntry>> = HashMap::new();
 
