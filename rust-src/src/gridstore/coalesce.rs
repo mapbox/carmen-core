@@ -588,7 +588,13 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                             MAX_GRIDS_PER_PHRASE,
                         )?
                         .take(MAX_GRIDS_PER_PHRASE)
-                        .filter(|grid| unique_ids.insert((grid.grid_entry.x, grid.grid_entry.y, grid.grid_entry.id)))
+                        .filter(|grid| {
+                            unique_ids.insert((
+                                grid.grid_entry.x,
+                                grid.grid_entry.y,
+                                grid.grid_entry.id,
+                            ))
+                        })
                         .collect();
                     Ok(KeyFetchResult::Multi((key_step.key_id, data)))
                 }
