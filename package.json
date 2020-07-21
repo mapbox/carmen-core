@@ -1,6 +1,6 @@
 {
   "name": "@mapbox/carmen-core",
-  "version": "0.1.1-flatbush-4",
+  "version": "0.1.1-flatbush-dedup-1",
   "description": "node bindings for carmen-core",
   "main": "index.js",
   "engines": {
