@@ -10,7 +10,7 @@ fi
 # build the benchmarks
 cargo bench --no-run $1
 # find the build benchmark
-BUILD=$(ls -t target/release/benchmarks* | grep -v "\.d$" | head -n 1)
+BUILD=$(ls -t target/release/deps/benchmarks* | grep -v "\.d$" | head -n 1)
 # run benchmark, modified from http://carol-nichols.com/2017/04/20/rust-profiling-with-dtrace-on-osx/
 sudo -E dtrace -c "./$BUILD $1" -o out-$$.stacks -n 'profile-997 /pid == $target/ { @[ustack(100)] = count(); }'
 
