@@ -451,6 +451,7 @@ pub struct MatchKeyWithId {
     #[serde(default)]
     pub nearby_only: bool,
     pub id: u32,
+    #[serde(default)]
     pub phrase_length: usize,
 }
 

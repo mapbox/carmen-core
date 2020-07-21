@@ -212,9 +212,18 @@ pub struct GridStorePlaceholder {
     max_score: f64,
 }
 
+// the data we use for stackable benches doesn't have all the fields, and we don't need them all
 #[derive(Deserialize, Debug)]
-struct SubqueryPlaceholder {
-    store: GridStorePlaceholder,
+struct MinimalGridStorePlaceholder {
+    path: String,
+    zoom: u16,
+    type_id: u16,
+    coalesce_radius: f64,
+}
+
+#[derive(Deserialize, Debug)]
+struct SubqueryPlaceholder<T> {
+    store: T,
     idx: u16,
     non_overlapping_indexes: HashSet<u32>,
     weight: f64,
@@ -234,7 +243,7 @@ pub fn prepare_phrasematches(
         .filter_map(|l| {
             let record = l.unwrap();
             if !record.is_empty() {
-                let deserialized: (Vec<SubqueryPlaceholder>, MatchOpts) =
+                let deserialized: (Vec<SubqueryPlaceholder<GridStorePlaceholder>>, MatchOpts) =
                     serde_json::from_str(&record).expect("Error deserializing json from string");
                 let stack: Vec<_> = deserialized
                     .0
@@ -300,7 +309,7 @@ pub fn prepare_stackable_phrasematches(
         .filter_map(|l| {
             let record = l.unwrap();
             if !record.is_empty() {
-                let deserialized: (Vec<SubqueryPlaceholder>, MatchOpts) =
+                let deserialized: (Vec<SubqueryPlaceholder<MinimalGridStorePlaceholder>>, MatchOpts) =
                     serde_json::from_str(&record).expect("Error deserializing json from string");
                 let stack: Vec<_> = deserialized
                     .0
@@ -311,15 +320,15 @@ pub fn prepare_stackable_phrasematches(
                                 // since stackable doesn't really need the actual gridstore data
                                 // we're using aa-country in order to avoid having to download gridstore data from every index
                                 let store_name =
-                                    "aa-country-both-3e43d23805-069d003ff2.gridstore.dat.lz4";
+                                    "aa-country-both_wvus-fa5c865008-e06f993377.gridstore.dat.lz4";
                                 let store_path = ensure_store(&store_name);
                                 let gs = GridStore::new_with_options(
                                     store_path,
                                     placeholder.store.zoom,
                                     placeholder.store.type_id,
                                     placeholder.store.coalesce_radius,
-                                    placeholder.store.bboxes.clone(),
-                                    placeholder.store.max_score,
+                                    global_bbox_for_zoom(placeholder.store.zoom),
+                                    1.0,
                                 )
                                 .unwrap();
                                 Arc::new(gs)
