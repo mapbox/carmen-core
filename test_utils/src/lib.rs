@@ -309,8 +309,10 @@ pub fn prepare_stackable_phrasematches(
         .filter_map(|l| {
             let record = l.unwrap();
             if !record.is_empty() {
-                let deserialized: (Vec<SubqueryPlaceholder<MinimalGridStorePlaceholder>>, MatchOpts) =
-                    serde_json::from_str(&record).expect("Error deserializing json from string");
+                let deserialized: (
+                    Vec<SubqueryPlaceholder<MinimalGridStorePlaceholder>>,
+                    MatchOpts,
+                ) = serde_json::from_str(&record).expect("Error deserializing json from string");
                 let stack: Vec<_> = deserialized
                     .0
                     .iter()
