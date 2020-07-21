@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use failure::Error;
+use fxhash::FxHashSet;
 use indexmap::map::{Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
@@ -576,6 +577,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                     Ok(KeyFetchResult::Single(step_contexts))
                 } else {
+                    let mut unique_ids = FxHashSet::default();
                     let data: Vec<_> = key_step
                         .subquery
                         .store
@@ -586,6 +588,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                             MAX_GRIDS_PER_PHRASE,
                         )?
                         .take(MAX_GRIDS_PER_PHRASE)
+                        .filter(|grid| unique_ids.insert((grid.grid_entry.x, grid.grid_entry.y, grid.grid_entry.id)))
                         .collect();
                     Ok(KeyFetchResult::Multi((key_step.key_id, data)))
                 }
