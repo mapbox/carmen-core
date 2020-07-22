@@ -108,6 +108,7 @@ dependencies = [
  "byteorder",
  "failure",
  "fixedbitset",
+ "fxhash",
  "generational-arena",
  "indexmap",
  "integer-encoding",
