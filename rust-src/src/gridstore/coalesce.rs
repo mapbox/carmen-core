@@ -12,7 +12,7 @@ use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
-use static_bushes::{FlatBush, FlatBushBuilder};
+use static_bushes::{KDBush, KDBushBuilder};
 
 use crate::gridstore::common::*;
 use crate::gridstore::spatial::adjust_bbox_zoom;
@@ -340,18 +340,18 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
 
 struct TreeCoalesceState {
     contexts: Vec<CoalesceContext>,
-    flatbush: FlatBush<u16>,
+    bush: KDBush<u16>,
 }
 
 impl TreeCoalesceState {
     fn new(contexts: Vec<CoalesceContext>) -> TreeCoalesceState {
-        let mut builder: FlatBushBuilder<u16> = FlatBushBuilder::new();
+        let mut builder: KDBushBuilder<u16> = KDBushBuilder::new();
         for context in contexts.iter() {
-            let (x, y) = (context.entries[0].grid_entry.x, context.entries[0].grid_entry.y);
-            builder.add(&[x, y, x, y]);
+            let point = [context.entries[0].grid_entry.x, context.entries[0].grid_entry.y];
+            builder.add(&point);
         }
-        let flatbush = builder.finish();
-        TreeCoalesceState { contexts, flatbush }
+        let bush = builder.finish();
+        TreeCoalesceState { contexts, bush }
     }
 }
 
@@ -662,12 +662,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     key_group.id,
                                 );
 
-                                let already_coalesced = prev_state.flatbush.search_range(
-                                    prev_zoom_xy.0,
-                                    prev_zoom_xy.1,
-                                    prev_zoom_xy.0,
-                                    prev_zoom_xy.1,
-                                );
+                                let already_coalesced =
+                                    prev_state.bush.exact_as_vec(prev_zoom_xy.0, prev_zoom_xy.1);
                                 for parent_id in already_coalesced {
                                     let parent_context = &prev_state.contexts[parent_id];
                                     let mut new_context = parent_context.clone();
@@ -747,7 +743,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 // for us to bother continuing
                                 let overlaps = child_bboxes.iter().any(|bbox| {
                                     state
-                                        .flatbush
+                                        .bush
                                         .search_range(bbox[0], bbox[1], bbox[2], bbox[3])
                                         .next()
                                         .is_some()
