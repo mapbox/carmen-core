@@ -380,7 +380,9 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         };
 
         let contains_prox = if let Some(prox) = match_opts.proximity {
-            subquery.store.borrow().bboxes.iter().any(|bbox| bbox[0] <= prox[0] && bbox[2] >= prox[0] && bbox[1] <= prox[1] && bbox[3] >= prox[1])
+            subquery.store.borrow().bboxes.iter().any(|bbox| {
+                bbox[0] <= prox[0] && bbox[2] >= prox[0] && bbox[1] <= prox[1] && bbox[3] >= prox[1]
+            })
         } else {
             false
         };
@@ -391,7 +393,11 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
     #[inline(always)]
     fn cmp_key(&self) -> (OrderedFloat<f64>, bool, OrderedFloat<f64>) {
         let subquery = self.node.phrasematch.expect("phrasematch required");
-        (OrderedFloat(self.node.max_relev), self.contains_prox, OrderedFloat(subquery.store.borrow().max_score))
+        (
+            OrderedFloat(self.node.max_relev),
+            self.contains_prox,
+            OrderedFloat(subquery.store.borrow().max_score),
+        )
     }
 }
 
@@ -543,8 +549,11 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 }
 
                                 // limit the number of single-word scans of high-zoom indexes (but exempt numerical autocomplete)
-                                if subquery.store.borrow().might_be_slow() && !key_group.nearby_only {
-                                    if one_word_high_zoom_range_count < ONE_WORD_HIGH_ZOOM_RANGE_QUOTA {
+                                if subquery.store.borrow().might_be_slow() && !key_group.nearby_only
+                                {
+                                    if one_word_high_zoom_range_count
+                                        < ONE_WORD_HIGH_ZOOM_RANGE_QUOTA
+                                    {
                                         one_word_high_zoom_range_count += 1;
                                     } else {
                                         continue;
