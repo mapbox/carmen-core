@@ -810,7 +810,7 @@ checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 [[package]]
 name = "static-bushes"
 version = "0.1.0"
-source = "git+https://github.com/apendleton/static-bushes.git?rev=c4231f2e40c16be7b00bd48d2f8e444b159d6ef0#c4231f2e40c16be7b00bd48d2f8e444b159d6ef0"
+source = "git+https://github.com/apendleton/static-bushes.git?rev=114ac2ed77cf9aae6017074e85a93f79d251b4b8#114ac2ed77cf9aae6017074e85a93f79d251b4b8"
 dependencies = [
  "genawaiter",
  "num-traits",
