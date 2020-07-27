@@ -527,6 +527,7 @@ dependencies = [
  "neon-build",
  "neon-serde",
  "owning_ref",
+ "rayon",
  "serde",
 ]
 

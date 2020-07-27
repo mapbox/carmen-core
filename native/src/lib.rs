@@ -9,6 +9,7 @@ use neon_serde::errors::Result as LibResult;
 use serde::Deserialize;
 use owning_ref::OwningHandle;
 use failure::Error;
+use rayon;
 
 use std::sync::Arc;
 
@@ -558,6 +559,8 @@ fn prep_for_insert<'j, T: neon::object::This>(cx: &mut CallContext<'j, T>) -> Re
 }
 
 register_module!(mut m, {
+    // set thread count to 16 regardless of number of cores
+    rayon::ThreadPoolBuilder::new().num_threads(16).build_global().unwrap();
     m.export_class::<JsGridStoreBuilder>("GridStoreBuilder")?;
     m.export_class::<JsGridStore>("GridStore")?;
     m.export_class::<JsGridKeyStoreKeyIterator>("GridStoreKeyIterator")?;
