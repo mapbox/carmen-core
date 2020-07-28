@@ -12,7 +12,7 @@ use itertools::Itertools;
 use min_max_heap::MinMaxHeap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
-use static_bushes::{FlatBush, FlatBushBuilder};
+use static_bushes::{KDBush, KDBushBuilder};
 
 use crate::gridstore::common::*;
 use crate::gridstore::spatial::adjust_bbox_zoom;
@@ -340,18 +340,18 @@ fn coalesce_multi<T: Borrow<GridStore> + Clone>(
 
 struct TreeCoalesceState {
     contexts: Vec<CoalesceContext>,
-    flatbush: FlatBush<u16>,
+    bush: KDBush<u16>,
 }
 
 impl TreeCoalesceState {
     fn new(contexts: Vec<CoalesceContext>) -> TreeCoalesceState {
-        let mut builder: FlatBushBuilder<u16> = FlatBushBuilder::new();
+        let mut builder: KDBushBuilder<u16> = KDBushBuilder::new();
         for context in contexts.iter() {
-            let (x, y) = (context.entries[0].grid_entry.x, context.entries[0].grid_entry.y);
-            builder.add(&[x, y, x, y]);
+            let point = [context.entries[0].grid_entry.x, context.entries[0].grid_entry.y];
+            builder.add(&point);
         }
-        let flatbush = builder.finish();
-        TreeCoalesceState { contexts, flatbush }
+        let bush = builder.finish();
+        TreeCoalesceState { contexts, bush }
     }
 }
 
@@ -361,6 +361,7 @@ struct CoalesceStep<'a, T: Borrow<GridStore> + Clone + Debug> {
     prev_zoom: u16,
     match_opts: MatchOpts,
     possible_relev: f64,
+    contains_prox: bool,
 }
 
 impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
@@ -377,13 +378,26 @@ impl<T: Borrow<GridStore> + Clone + Debug> CoalesceStep<'_, T> {
         } else {
             match_opts.adjust_to_zoom(subquery.store.borrow().zoom)
         };
-        CoalesceStep { node, prev_state, prev_zoom, match_opts, possible_relev }
+
+        let contains_prox = if let Some(prox) = match_opts.proximity {
+            subquery.store.borrow().bboxes.iter().any(|bbox| {
+                bbox[0] <= prox[0] && bbox[2] >= prox[0] && bbox[1] <= prox[1] && bbox[3] >= prox[1]
+            })
+        } else {
+            false
+        };
+
+        CoalesceStep { node, prev_state, prev_zoom, match_opts, possible_relev, contains_prox }
     }
 
     #[inline(always)]
-    fn cmp_key(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>) {
+    fn cmp_key(&self) -> (OrderedFloat<f64>, bool, OrderedFloat<f64>) {
         let subquery = self.node.phrasematch.expect("phrasematch required");
-        (OrderedFloat(self.node.max_relev), OrderedFloat(subquery.store.borrow().max_score))
+        (
+            OrderedFloat(self.node.max_relev),
+            self.contains_prox,
+            OrderedFloat(subquery.store.borrow().max_score),
+        )
     }
 }
 
@@ -428,7 +442,11 @@ fn penalize_multi_context(context: &mut CoalesceContext) {
 }
 
 pub const COALESCE_CHUNK_SIZE: usize = 8;
-pub const SHORT_RANGE_QUOTA: usize = 8;
+pub const ONE_LETTER_RANGE_QUOTA: usize = 8;
+pub const ONE_WORD_HIGH_ZOOM_RANGE_QUOTA: usize = 8;
+pub const ONE_WORD_RANGE_QUOTA: usize = 40;
+pub const ALL_HIGH_ZOOM_RANGE_QUOTA: usize = 40;
+pub const ALL_HIGH_ZOOM_QUOTA: usize = 600;
 
 pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     stack_tree: &StackableTree<T>,
@@ -441,7 +459,11 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
     let mut steps: MinMaxHeap<CoalesceStep<T>> = MinMaxHeap::new();
     let mut data_cache: HashMap<u32, Vec<MatchEntry>> = HashMap::new();
 
-    let mut short_range_count: usize = 0;
+    let mut one_letter_range_count: usize = 0;
+    let mut one_word_range_count: usize = 0;
+    let mut one_word_high_zoom_range_count: usize = 0;
+    let mut all_high_zoom_range_count: usize = 0;
+    let mut all_high_zoom_count: usize = 0;
 
     for child_idx in &stack_tree.root.children {
         if let Some(node) = stack_tree.arena.get(*child_idx) {
@@ -455,13 +477,18 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
         }
     }
 
-    while steps.len() > 0 {
+    let mut complete = false;
+    while steps.len() > 0 && !complete {
         // as long as there's still work to do, we'll execute it a chunk at a time, peeling off
         // the next few best nodes, and executing on them in parallel
         let mut step_chunk = Vec::with_capacity(COALESCE_CHUNK_SIZE);
         let mut keys = Vec::new();
         let mut unique_keys = HashSet::new();
-        for _i in 0..COALESCE_CHUNK_SIZE {
+
+        let mut added_in_this_chunk = 0;
+        while added_in_this_chunk < COALESCE_CHUNK_SIZE {
+            let mut enqueued_work_in_this_iter = false;
+
             if let Some(step) = steps.pop_max() {
                 // if we've already gotten as many items as we're going to return, only keep processing
                 // if anything we have left has the possibility of beating our worst current result
@@ -469,6 +496,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                     if step.node.max_relev
                         <= contexts.peek_min().expect("contexts can't be empty").relev
                     {
+                        complete = true;
                         break;
                     }
                 }
@@ -508,21 +536,57 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 // this is a potentially-slow leaf subquery in a high-zoom index
                                 // that isn't likely to make our best results better, so skip it
                                 continue;
-                            } else if key_group.phrase_length == 1
-                                && !unique_keys.contains(&(key_group.id, is_single))
-                            {
-                                // even though this isn't a leaf node or a high-zoom index, it's a single-letter query,
-                                // which could be *really* slow and is pretty low-information, so set a quota to constrain
-                                // the total number of these we can end up fetching
-                                if short_range_count < SHORT_RANGE_QUOTA {
-                                    short_range_count += 1;
+                            } else if !unique_keys.contains(&(key_group.id, is_single)) {
+                                if key_group.phrase_length == 1 {
+                                    // even though this isn't a leaf node or a high-zoom index, it's a single-letter query,
+                                    // which could be *really* slow and is pretty low-information, so set a quota to constrain
+                                    // the total number of these we can end up fetching
+                                    if one_letter_range_count < ONE_LETTER_RANGE_QUOTA {
+                                        one_letter_range_count += 1;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+
+                                // limit the number of single-word scans of high-zoom indexes (but exempt numerical autocomplete)
+                                if subquery.store.borrow().might_be_slow() && !key_group.nearby_only
+                                {
+                                    if one_word_high_zoom_range_count
+                                        < ONE_WORD_HIGH_ZOOM_RANGE_QUOTA
+                                    {
+                                        one_word_high_zoom_range_count += 1;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+
+                                if one_word_range_count < ONE_WORD_RANGE_QUOTA {
+                                    one_word_range_count += 1;
                                 } else {
                                     continue;
                                 }
                             }
                         }
 
+                        // quotas for high-zoom indexes other than single-word ones
+                        if subquery.store.borrow().might_be_slow() && !key_group.nearby_only {
+                            if is_range {
+                                if all_high_zoom_range_count < ALL_HIGH_ZOOM_RANGE_QUOTA {
+                                    all_high_zoom_range_count += 1;
+                                } else {
+                                    continue;
+                                }
+                            }
+
+                            if all_high_zoom_count < ALL_HIGH_ZOOM_QUOTA {
+                                all_high_zoom_count += 1;
+                            } else {
+                                continue;
+                            }
+                        }
+
                         if unique_keys.insert((key_group.id, is_single)) {
+                            enqueued_work_in_this_iter = true;
                             keys.push(KeyFetchStep {
                                 key_id: key_group.id,
                                 subquery: (*subquery).clone(),
@@ -535,8 +599,15 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                 }
 
                 if !is_single {
+                    enqueued_work_in_this_iter = true;
                     step_chunk.push(step);
                 }
+
+                if enqueued_work_in_this_iter {
+                    added_in_this_chunk += 1;
+                }
+            } else {
+                break;
             }
         }
 
@@ -662,12 +733,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                     key_group.id,
                                 );
 
-                                let already_coalesced = prev_state.flatbush.search_range(
-                                    prev_zoom_xy.0,
-                                    prev_zoom_xy.1,
-                                    prev_zoom_xy.0,
-                                    prev_zoom_xy.1,
-                                );
+                                let already_coalesced =
+                                    prev_state.bush.exact_as_vec(prev_zoom_xy.0, prev_zoom_xy.1);
                                 for parent_id in already_coalesced {
                                     let parent_context = &prev_state.contexts[parent_id];
                                     let mut new_context = parent_context.clone();
@@ -747,7 +814,7 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
                                 // for us to bother continuing
                                 let overlaps = child_bboxes.iter().any(|bbox| {
                                     state
-                                        .flatbush
+                                        .bush
                                         .search_range(bbox[0], bbox[1], bbox[2], bbox[3])
                                         .next()
                                         .is_some()
