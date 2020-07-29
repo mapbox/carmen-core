@@ -6,17 +6,18 @@ extern crate serde_json;
 use carmen_core::gridstore::*;
 
 use failure::Error;
+use fixedbitset::FixedBitSet;
 use lz4::Decoder;
 use rusoto_core::Region;
 use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
-use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
 
 // Util functions for tests and benchmarks
 
@@ -49,17 +50,42 @@ struct PrefixBoundary {
     last: u32,
 }
 
+pub struct TestStore {
+    pub store: GridStore,
+    pub idx: u16,
+    pub non_overlapping_indexes: FixedBitSet,
+}
+
 /// Utility to create stores
 /// Takes an vector, with each item mapping to a store to create
 /// Each item is a vector with maps of grid keys to the entries to insert into the store for that grid key
-pub fn create_store(store_entries: Vec<StoreEntryBuildingBlock>) -> GridStore {
+pub fn create_store(
+    store_entries: Vec<StoreEntryBuildingBlock>,
+    idx: u16,
+    zoom: u16,
+    type_id: u16,
+    non_overlapping_indexes: FixedBitSet,
+    coalesce_radius: f64,
+) -> TestStore {
     let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
     let mut builder = GridStoreBuilder::new(directory.path()).unwrap();
     for build_block in store_entries {
         builder.insert(&build_block.grid_key, build_block.entries).expect("Unable to insert");
     }
     builder.finish().unwrap();
-    GridStore::new(directory.path()).unwrap()
+    TestStore {
+        store: GridStore::new_with_options(
+            directory.path(),
+            zoom,
+            type_id,
+            coalesce_radius,
+            global_bbox_for_zoom(zoom),
+            1.0,
+        )
+        .unwrap(),
+        idx,
+        non_overlapping_indexes,
+    }
 }
 
 // Gets the absolute path for a path relative to the carmen-core dir
@@ -71,16 +97,20 @@ pub fn get_absolute_path(relative_path: &Path) -> Result<PathBuf, Error> {
 }
 
 /// Load grid data from a local JSON path
-pub fn load_db_from_json(json_path: &str, store_path: &str) {
+pub fn load_db_from_json(json_path: &str, split_path: &str, store_path: &str) {
     // Open json file
-    let path = Path::new(json_path);
-    let f = File::open(path).expect("Error opening file");
-    let file = io::BufReader::new(f);
+    let json_path = Path::new(json_path);
+    let json_f = File::open(json_path).expect("Error opening file");
+    let json_file = io::BufReader::new(json_f);
 
-    load_db_from_json_reader(file, None, store_path);
+    let split_path = Path::new(split_path);
+    let split_f = File::open(split_path).expect("Error opening file");
+    let split_file = io::BufReader::new(split_f);
+
+    load_db_from_json_reader(json_file, split_file, store_path);
 }
 
-fn load_db_from_json_reader<T: BufRead>(json_source: T, split_source: Option<T>, store_path: &str) {
+fn load_db_from_json_reader<T: BufRead>(json_source: T, split_source: T, store_path: &str) {
     // Set up new gridstore
     let directory = Path::new(store_path);
     let mut builder = GridStoreBuilder::new(directory).unwrap();
@@ -93,20 +123,9 @@ fn load_db_from_json_reader<T: BufRead>(json_source: T, split_source: Option<T>,
         }
     });
 
-    if let Some(splits) = split_source {
-        let boundary_records: Vec<PrefixBoundary> = splits
-            .lines()
-            .map(|l| {
-                serde_json::from_str(&l.unwrap()).expect("Error deserializing json from string")
-            })
-            .collect();
-
-        if boundary_records.len() > 0 {
-            let mut boundaries: Vec<u32> = boundary_records.iter().map(|r| r.first).collect();
-            boundaries.push(boundary_records.last().unwrap().last + 1);
-            builder.load_bin_boundaries(boundaries).unwrap();
-        }
-    }
+    let boundaries: Vec<u32> =
+        serde_json::from_reader(split_source).expect("Error deserializing json from string");
+    builder.load_bin_boundaries(boundaries).unwrap();
 
     builder.finish().unwrap();
 }
@@ -125,6 +144,13 @@ pub fn dump_db_to_json(store_path: &str, json_path: &str) {
         writer.write(&bytes).unwrap();
         writer.write(b"\n").unwrap();
     }
+
+    let mut boundaries: Vec<u32> = reader.bin_boundaries.iter().cloned().collect();
+    boundaries.sort();
+    let splits_path = json_path.to_owned().replace(".gridstore.dat", "") + ".gridstore.splits";
+    let splits_file = File::create(splits_path).unwrap();
+    let mut splits_writer = BufWriter::new(splits_file);
+    splits_writer.write(serde_json::to_string(&boundaries).unwrap().as_bytes()).unwrap();
 }
 
 pub fn ensure_downloaded(datafile: &str) -> PathBuf {
@@ -135,7 +161,7 @@ pub fn ensure_downloaded(datafile: &str) -> PathBuf {
         let client = S3Client::new(Region::UsEast1);
         let request = GetObjectRequest {
             bucket: "mapbox".to_owned(),
-            key: ("playground/apendleton/gridstore_bench/".to_owned() + datafile),
+            key: ("playground/apendleton/gridstore_bench_v3/".to_owned() + datafile),
             ..Default::default()
         };
 
@@ -153,7 +179,7 @@ pub fn ensure_downloaded(datafile: &str) -> PathBuf {
 }
 
 pub const GRIDSTORE_DATA_SUFFIX: &'static str = ".gridstore.dat.lz4";
-pub const PREFIX_BOUNDARY_SUFFIX: &'static str = ".splits.lz4";
+pub const PREFIX_BOUNDARY_SUFFIX: &'static str = ".gridstore.splits.lz4";
 
 pub fn ensure_store(datafile: &str) -> PathBuf {
     let tmp = std::env::temp_dir().join("carmen_core_data/indexes");
@@ -170,58 +196,94 @@ pub fn ensure_store(datafile: &str) -> PathBuf {
         let splits_decoder = Decoder::new(File::open(splits_path).unwrap()).unwrap();
         let splits_file = io::BufReader::new(splits_decoder);
 
-        load_db_from_json_reader(grid_file, Some(splits_file), idx_path.to_str().unwrap());
+        load_db_from_json_reader(grid_file, splits_file, idx_path.to_str().unwrap());
     }
 
     idx_path
 }
 
 #[derive(Deserialize, Debug)]
-struct SubqueryPlaceholder {
-    store: String,
-    weight: f64,
-    match_key: MatchKey,
-    idx: u16,
+pub struct GridStorePlaceholder {
+    path: String,
     zoom: u16,
+    type_id: u16,
+    coalesce_radius: f64,
+    bboxes: Vec<[u16; 4]>,
+    max_score: f64,
+}
+
+// the data we use for stackable benches doesn't have all the fields, and we don't need them all
+#[derive(Deserialize, Debug)]
+struct MinimalGridStorePlaceholder {
+    path: String,
+    zoom: u16,
+    type_id: u16,
+    coalesce_radius: f64,
+}
+
+#[derive(Deserialize, Debug)]
+struct SubqueryPlaceholder<T> {
+    store: T,
+    idx: u16,
+    non_overlapping_indexes: HashSet<u32>,
+    weight: f64,
+    match_keys: Vec<MatchKeyWithId>,
     mask: u32,
 }
 
-pub fn prepare_coalesce_stacks(
+pub fn prepare_phrasematches(
     datafile: &str,
-) -> Vec<(Vec<PhrasematchSubquery<Rc<GridStore>>>, MatchOpts)> {
+) -> Vec<(Vec<PhrasematchSubquery<Arc<GridStore>>>, MatchOpts)> {
     let path = ensure_downloaded(datafile);
     let decoder = Decoder::new(File::open(path).unwrap()).unwrap();
     let file = io::BufReader::new(decoder);
-    let mut stores: HashMap<String, Rc<GridStore>> = HashMap::new();
-    let out: Vec<(Vec<PhrasematchSubquery<Rc<GridStore>>>, MatchOpts)> = file
+    let mut stores: HashMap<String, Arc<GridStore>> = HashMap::new();
+    let out: Vec<(Vec<PhrasematchSubquery<Arc<GridStore>>>, MatchOpts)> = file
         .lines()
         .filter_map(|l| {
             let record = l.unwrap();
             if !record.is_empty() {
-                let deserialized: (Vec<SubqueryPlaceholder>, MatchOpts) =
+                let deserialized: (Vec<SubqueryPlaceholder<GridStorePlaceholder>>, MatchOpts) =
                     serde_json::from_str(&record).expect("Error deserializing json from string");
                 let stack: Vec<_> = deserialized
                     .0
                     .iter()
                     .map(|placeholder| {
-                        let store = stores.entry(placeholder.store.clone()).or_insert_with(|| {
-                            let store_name = placeholder
-                                .store
-                                .rsplit("/")
-                                .next()
-                                .unwrap()
-                                .replace(".rocksdb", ".dat.lz4");
-                            let store_path = ensure_store(&store_name);
-                            let gs = GridStore::new(store_path).unwrap();
-                            Rc::new(gs)
-                        });
+                        let store =
+                            stores.entry(placeholder.store.path.clone()).or_insert_with(|| {
+                                let store_name = placeholder
+                                    .store
+                                    .path
+                                    .rsplit("/")
+                                    .next()
+                                    .unwrap()
+                                    .replace(".rocksdb", ".dat.lz4");
+                                let store_path = ensure_store(&store_name);
+                                let gs = GridStore::new_with_options(
+                                    store_path,
+                                    placeholder.store.zoom,
+                                    placeholder.store.type_id,
+                                    placeholder.store.coalesce_radius,
+                                    placeholder.store.bboxes.clone(),
+                                    placeholder.store.max_score,
+                                )
+                                .unwrap();
+                                Arc::new(gs)
+                            });
+                        let fbs: FixedBitSet = placeholder
+                            .non_overlapping_indexes
+                            .clone()
+                            .into_iter()
+                            .map(|n| n as usize)
+                            .collect();
+
                         PhrasematchSubquery {
                             store: store.clone(),
                             weight: placeholder.weight,
-                            match_key: placeholder.match_key.clone(),
-                            idx: placeholder.idx,
-                            zoom: placeholder.zoom,
+                            match_keys: placeholder.match_keys.clone(),
                             mask: placeholder.mask,
+                            idx: placeholder.idx,
+                            non_overlapping_indexes: fbs,
                         }
                     })
                     .collect();
@@ -235,29 +297,67 @@ pub fn prepare_coalesce_stacks(
     out
 }
 
-/// Loads json from a file into a Vector of GridEntrys
-/// The input file should be line-delimited JSON with all of the fields of a GridEntry
-/// The path should be relative to the carmen-core directory
-///
-/// Example:
-/// {"relev": 1, "score": 1, "x": 1, "y": 2, "id": 1, "source_phrase_hash": 0}
-pub fn load_simple_grids_from_json(path: &Path) -> Result<Vec<GridEntry>, Error> {
-    let dir = env::current_dir().expect("Error getting current dir");
-    let mut filepath = fs::canonicalize(&dir).expect("Error getting cannonicalized current dir");
-    filepath.push(path);
-    let f = File::open(path).expect("Error opening file");
-    let file = io::BufReader::new(f);
-    let entries: Vec<GridEntry> = file
+pub fn prepare_stackable_phrasematches(
+    datafile: &str,
+) -> Vec<Vec<PhrasematchSubquery<Arc<GridStore>>>> {
+    let path = ensure_downloaded(datafile);
+    let decoder = Decoder::new(File::open(path).unwrap()).unwrap();
+    let file = io::BufReader::new(decoder);
+    let mut stores: HashMap<String, Arc<GridStore>> = HashMap::new();
+    let out: Vec<Vec<PhrasematchSubquery<Arc<GridStore>>>> = file
         .lines()
-        .filter_map(|l| match l.unwrap() {
-            ref t if t.len() == 0 => None,
-            t => {
-                let deserialized: GridEntry =
-                    serde_json::from_str(&t).expect("Error deserializing json from string");
-                Some(deserialized)
+        .filter_map(|l| {
+            let record = l.unwrap();
+            if !record.is_empty() {
+                let deserialized: (
+                    Vec<SubqueryPlaceholder<MinimalGridStorePlaceholder>>,
+                    MatchOpts,
+                ) = serde_json::from_str(&record).expect("Error deserializing json from string");
+                let stack: Vec<_> = deserialized
+                    .0
+                    .iter()
+                    .map(|placeholder| {
+                        let store =
+                            stores.entry(placeholder.store.path.clone()).or_insert_with(|| {
+                                // since stackable doesn't really need the actual gridstore data
+                                // we're using aa-country in order to avoid having to download gridstore data from every index
+                                let store_name =
+                                    "aa-country-both_wvus-fa5c865008-e06f993377.gridstore.dat.lz4";
+                                let store_path = ensure_store(&store_name);
+                                let gs = GridStore::new_with_options(
+                                    store_path,
+                                    placeholder.store.zoom,
+                                    placeholder.store.type_id,
+                                    placeholder.store.coalesce_radius,
+                                    global_bbox_for_zoom(placeholder.store.zoom),
+                                    1.0,
+                                )
+                                .unwrap();
+                                Arc::new(gs)
+                            });
+
+                        let fbs: FixedBitSet = placeholder
+                            .non_overlapping_indexes
+                            .clone()
+                            .into_iter()
+                            .map(|n| n as usize)
+                            .collect();
+
+                        PhrasematchSubquery {
+                            store: store.clone(),
+                            weight: placeholder.weight,
+                            match_keys: placeholder.match_keys.clone(),
+                            mask: placeholder.mask,
+                            idx: placeholder.idx,
+                            non_overlapping_indexes: fbs,
+                        }
+                    })
+                    .collect();
+                Some(stack)
+            } else {
+                None
             }
         })
-        .collect::<Vec<GridEntry>>();
-
-    Ok(entries)
+        .collect();
+    out
 }

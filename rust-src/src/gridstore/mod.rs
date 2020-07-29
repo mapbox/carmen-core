@@ -3,16 +3,20 @@ mod coalesce;
 mod common;
 mod gridstore_format;
 mod spatial;
+mod stackable;
 mod store;
 
 pub use builder::*;
-pub use coalesce::coalesce;
+pub use coalesce::{coalesce, collapse_phrasematches, stack_and_coalesce, tree_coalesce};
 pub use common::*;
+pub use spatial::global_bbox_for_zoom;
+pub use stackable::stackable;
 pub use store::*;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fixedbitset::FixedBitSet;
     use once_cell::sync::Lazy;
     use std::collections::BTreeMap;
 
@@ -191,7 +195,15 @@ mod tests {
 
         builder.finish().unwrap();
 
-        let reader = GridStore::new(directory.path()).unwrap();
+        let reader = GridStore::new_with_options(
+            directory.path(),
+            14,
+            0,
+            1000.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         let search_key =
             MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 2 }, lang_set: 1 };
@@ -387,11 +399,7 @@ mod tests {
         let records: Vec<_> = reader
             .streaming_get_matching(
                 &search_key,
-                &MatchOpts {
-                    bbox: None,
-                    proximity: Some(Proximity { point: [26, 1], radius: 1000. }),
-                    ..MatchOpts::default()
-                },
+                &MatchOpts { bbox: None, proximity: Some([26, 1]), ..MatchOpts::default() },
                 MAX_CONTEXTS,
             )
             .unwrap()
@@ -422,7 +430,7 @@ mod tests {
                 &search_key,
                 &MatchOpts {
                     bbox: Some([10, 0, 41, 2]),
-                    proximity: Some(Proximity { point: [26, 1], radius: 1000. }),
+                    proximity: Some([26, 1]),
                     ..MatchOpts::default()
                 },
                 MAX_CONTEXTS,
@@ -508,9 +516,24 @@ mod tests {
         builder_with_boundaries.finish().unwrap();
         builder_without_boundaries.finish().unwrap();
 
-        let reader_with_boundaries = GridStore::new(directory_with_boundaries.path()).unwrap();
-        let reader_without_boundaries =
-            GridStore::new(directory_without_boundaries.path()).unwrap();
+        let reader_with_boundaries = GridStore::new_with_options(
+            directory_with_boundaries.path(),
+            14,
+            0,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
+        let reader_without_boundaries = GridStore::new_with_options(
+            directory_without_boundaries.path(),
+            14,
+            0,
+            200.,
+            global_bbox_for_zoom(14),
+            1.0,
+        )
+        .unwrap();
 
         (
             reader_with_boundaries,
@@ -644,13 +667,17 @@ mod tests {
         .map(|(reader, range)| {
             let subquery = PhrasematchSubquery {
                 store: reader,
-                weight: 1.,
-                match_key: MatchKey {
-                    match_phrase: MatchPhrase::Range { start: range.0, end: range.1 },
-                    lang_set: 1,
-                },
                 idx: 1,
-                zoom: 14,
+                non_overlapping_indexes: FixedBitSet::with_capacity(128),
+                weight: 1.,
+                match_keys: vec![MatchKeyWithId {
+                    id: 0,
+                    key: MatchKey {
+                        match_phrase: MatchPhrase::Range { start: range.0, end: range.1 },
+                        lang_set: 1,
+                    },
+                    ..MatchKeyWithId::default()
+                }],
                 mask: 1 << 0,
             };
             let stack = vec![subquery];

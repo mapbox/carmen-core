@@ -1,14 +1,15 @@
-use carmen_core::gridstore::coalesce;
-use carmen_core::gridstore::PhrasematchSubquery;
+use carmen_core::gridstore::{coalesce, stackable, stack_and_coalesce};
 use carmen_core::gridstore::{
-    CoalesceContext, GridEntry, GridKey, GridStore, GridStoreBuilder, MatchOpts, MatchKey,
+    CoalesceContext, GridEntry, GridKey, GridStore, GridStoreBuilder, MatchOpts, MatchKey, MatchKeyWithId, PhrasematchSubquery
 };
 
 use neon::prelude::*;
 use neon::{class_definition, declare_types, impl_managed, register_module};
 use neon_serde::errors::Result as LibResult;
+use serde::Deserialize;
 use owning_ref::OwningHandle;
 use failure::Error;
+use rayon;
 
 use std::sync::Arc;
 
@@ -44,7 +45,46 @@ impl Task for CoalesceTask {
     }
 }
 
+struct StackAndCoalesceTask {
+    argument: (Vec<PhrasematchSubquery<ArcGridStore>>, MatchOpts),
+}
+
+impl Task for StackAndCoalesceTask {
+    type Output = Vec<CoalesceContext>;
+    type Error = String;
+    type JsEvent = JsArray;
+
+    fn perform(&self) -> Result<Vec<CoalesceContext>, String> {
+        stack_and_coalesce(&self.argument.0, &self.argument.1).map_err(|err| err.to_string())
+    }
+
+    fn complete<'a>(
+        self,
+        mut cx: TaskContext<'a>,
+        result: Result<Vec<CoalesceContext>, String>,
+    ) -> JsResult<JsArray> {
+        let converted_result = {
+            match &result {
+                Ok(r) => r,
+                Err(s) => return cx.throw_error(s),
+            }
+        };
+        Ok(neon_serde::to_value(&mut cx, converted_result)?
+            .downcast::<JsArray>()
+            .or_throw(&mut cx)?)
+    }
+}
+
 type KeyIterator = OwningHandle<ArcGridStore, Box<dyn Iterator<Item=Result<GridKey, Error>>>>;
+
+#[derive(Deserialize, Debug, PartialEq, Clone)]
+struct GridStoreOpts {
+    pub zoom: u16,
+    pub type_id: u16,
+    pub coalesce_radius: f64,
+    pub bboxes: Vec<[u16; 4]>,
+    pub max_score: f64,
+}
 
 declare_types! {
     pub class JsGridStoreBuilder as JsGridStoreBuilder for Option<GridStoreBuilder> {
@@ -241,7 +281,22 @@ declare_types! {
     pub class JsGridStore as JsGridStore for ArcGridStore {
         init(mut cx) {
             let filename = cx.argument::<JsString>(0)?.value();
-            match GridStore::new(filename) {
+            let store = match cx.argument_opt(1) {
+                Some(arg) => {
+                    let opts: GridStoreOpts = neon_serde::from_value(&mut cx, arg)?;
+
+                    GridStore::new_with_options(
+                        filename,
+                        opts.zoom,
+                        opts.type_id,
+                        opts.coalesce_radius,
+                        opts.bboxes,
+                        opts.max_score,
+                    )
+                },
+                None => GridStore::new(filename)
+            };
+            match store {
                 Ok(s) => Ok(Arc::new(s)),
                 Err(e) => cx.throw_type_error(e.to_string())
             }
@@ -397,6 +452,20 @@ pub fn js_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+pub fn js_stack_and_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let js_phrase_subq = { cx.argument::<JsArray>(0)? };
+    let js_match_ops = { cx.argument::<JsValue>(1)? };
+    let phrase_subq: Vec<PhrasematchSubquery<ArcGridStore>> =
+        deserialize_phrasesubq(&mut cx, js_phrase_subq)?;
+    let match_opts: MatchOpts = neon_serde::from_value(&mut cx, js_match_ops)?;
+    let cb = cx.argument::<JsFunction>(2)?;
+
+    let task = StackAndCoalesceTask { argument: (phrase_subq, match_opts) };
+    task.schedule(cb);
+
+    Ok(cx.undefined())
+}
+
 fn deserialize_phrasesubq<'j, C>(
     cx: &mut C,
     js_phrase_subq_array: Handle<'j, JsArray>,
@@ -418,8 +487,6 @@ where
             gridstore_clone
         };
         let weight = js_phrasematch.get(cx, "weight")?;
-        let idx = js_phrasematch.get(cx, "idx")?;
-        let zoom = js_phrasematch.get(cx, "zoom")?;
         let mask = js_phrasematch.get(cx, "mask")?;
 
         let match_key = js_phrasematch.get(cx, "match_key")?.downcast::<JsObject>().or_throw(cx)?;
@@ -428,17 +495,48 @@ where
         let js_lang_set = match_key.get(cx, "lang_set")?;
         let lang_set: u128 = langarray_to_langset(cx, js_lang_set)?;
 
+        let id = js_phrasematch.get(cx, "id")?;
+
+        let idx = js_phrasematch.get(cx, "idx")?;
+
+        let js_nearby_only = js_phrasematch.get(cx, "nearby_only")?;
+        let nearby_only: bool = if let Ok(_) = js_nearby_only.downcast::<JsUndefined>() {
+            false
+        } else {
+            js_nearby_only.downcast::<JsBoolean>().or_throw(cx)?.value()
+        };
+
+        let js_non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
+        let non_overlapping_indexes: Vec<u32> = neon_serde::from_value(cx, js_non_overlapping_indexes)?;
+
+        let phrase_length = js_phrasematch
+            .get(cx, "phrase")?.downcast::<JsString>().or_throw(cx)?.size() as usize;
+
         let subq = PhrasematchSubquery {
             store: gridstore,
             weight: neon_serde::from_value(cx, weight)?,
-            match_key: MatchKey { match_phrase: neon_serde::from_value(cx, match_phrase)?, lang_set },
-            idx: neon_serde::from_value(cx, idx)?,
-            zoom: neon_serde::from_value(cx, zoom)?,
+            match_keys: vec![MatchKeyWithId {
+                key: MatchKey { match_phrase: neon_serde::from_value(cx, match_phrase)?, lang_set },
+                id: neon_serde::from_value(cx, id)?,
+                nearby_only,
+                phrase_length
+            }],
             mask: neon_serde::from_value(cx, mask)?,
+            idx: neon_serde::from_value(cx, idx)?,
+            non_overlapping_indexes: non_overlapping_indexes.into_iter().map(|n| n as usize).collect(),
         };
         phrasematches.push(subq);
     }
     Ok(phrasematches)
+}
+
+pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let js_phrasematch_result = { cx.argument::<JsArray>(0)? };
+    let phrasematch_results: Vec<PhrasematchSubquery<ArcGridStore>> =
+        deserialize_phrasesubq(&mut cx, js_phrasematch_result)?;
+    stackable(&phrasematch_results);
+
+    Ok(cx.undefined())
 }
 
 #[inline(always)]
@@ -461,9 +559,13 @@ fn prep_for_insert<'j, T: neon::object::This>(cx: &mut CallContext<'j, T>) -> Re
 }
 
 register_module!(mut m, {
+    // set thread count to 16 regardless of number of cores
+    rayon::ThreadPoolBuilder::new().num_threads(16).build_global().unwrap();
     m.export_class::<JsGridStoreBuilder>("GridStoreBuilder")?;
     m.export_class::<JsGridStore>("GridStore")?;
     m.export_class::<JsGridKeyStoreKeyIterator>("GridStoreKeyIterator")?;
     m.export_function("coalesce", js_coalesce)?;
+    m.export_function("stackable", js_stackable)?;
+    m.export_function("stackAndCoalesce", js_stack_and_coalesce)?;
     Ok(())
 });

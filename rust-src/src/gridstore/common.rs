@@ -1,8 +1,14 @@
+use core::cmp::{Ordering, Reverse};
 use std::borrow::Borrow;
 
+use crate::gridstore::spatial::adjust_bbox_zoom;
 use crate::gridstore::store::GridStore;
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
+use fixedbitset::FixedBitSet;
+use min_max_heap::MinMaxHeap;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Copy, Clone, Debug)]
@@ -50,6 +56,12 @@ pub struct MatchKey {
     pub lang_set: u128,
 }
 
+impl Default for MatchKey {
+    fn default() -> Self {
+        MatchKey { match_phrase: MatchPhrase::Range { start: 0, end: 1 }, lang_set: 0 }
+    }
+}
+
 impl MatchKey {
     pub fn write_start_to(
         &self,
@@ -94,15 +106,9 @@ impl MatchKey {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct Proximity {
-    pub point: [u16; 2],
-    pub radius: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MatchOpts {
     pub bbox: Option<[u16; 4]>,
-    pub proximity: Option<Proximity>,
+    pub proximity: Option<[u16; 2]>,
     pub zoom: u16,
 }
 
@@ -112,24 +118,21 @@ impl Default for MatchOpts {
     }
 }
 
+pub const EARTH_CIRC_IN_MILES: f64 = 24901.0;
+pub const NEARBY_RADIUS: f64 = 25.0;
+
 impl MatchOpts {
     pub fn adjust_to_zoom(&self, target_z: u16) -> MatchOpts {
         if self.zoom == target_z {
             self.clone()
         } else {
             let adjusted_proximity = match &self.proximity {
-                Some(orig_proximity) => {
+                Some([x, y]) => {
                     if target_z < self.zoom {
                         // If this is a zoom out, divide by 2 for every level of zooming out.
                         let zoom_levels = self.zoom - target_z;
-                        Some(Proximity {
-                            // Shifting to the right by a number is the same as dividing by 2 that number of times.
-                            point: [
-                                orig_proximity.point[0] >> zoom_levels,
-                                orig_proximity.point[1] >> zoom_levels,
-                            ],
-                            radius: orig_proximity.radius,
-                        })
+                        // Shifting to the right by a number is the same as dividing by 2 that number of times.
+                        Some([x >> zoom_levels, y >> zoom_levels])
                     } else {
                         // If this is a zoom in, choose the closest to the middle of the possible tiles at the higher zoom level.
                         // The scale of the coordinates for zooming in is 2^(difference in zs).
@@ -137,54 +140,50 @@ impl MatchOpts {
                         // Pick a coordinate halfway between the possible higher zoom tiles,
                         // subtracting one to pick the one on the top left of the four middle tiles for consistency.
                         let mid_coord_adjuster = scale_multiplier / 2 - 1;
-                        let adjusted_x =
-                            orig_proximity.point[0] * scale_multiplier + mid_coord_adjuster;
-                        let adjusted_y =
-                            orig_proximity.point[1] * scale_multiplier + mid_coord_adjuster;
+                        let adjusted_x = x * scale_multiplier + mid_coord_adjuster;
+                        let adjusted_y = y * scale_multiplier + mid_coord_adjuster;
 
-                        Some(Proximity {
-                            point: [adjusted_x, adjusted_y],
-                            radius: orig_proximity.radius,
-                        })
+                        Some([adjusted_x, adjusted_y])
                     }
                 }
                 None => None,
             };
 
-            let adjusted_bbox = match &self.bbox {
-                Some(orig_bbox) => {
-                    if target_z < self.zoom {
-                        let zoom_levels = self.zoom - target_z;
-                        // If this is a zoom out, divide each coordinate by 2^(number of zoom levels).
-                        // This is the same as shifting bits to the right by the number of zoom levels.
-                        Some([
-                            orig_bbox[0] >> zoom_levels,
-                            orig_bbox[1] >> zoom_levels,
-                            orig_bbox[2] >> zoom_levels,
-                            orig_bbox[3] >> zoom_levels,
-                        ])
-                    } else {
-                        // If this is a zoom in
-                        let scale_multiplier = 1 << (target_z - self.zoom);
-
-                        // Scale the top left (min x and y) tile coordinates by 2^(zoom diff).
-                        // Scale the bottom right (max x and y) tile coordinates by 2^(zoom diff),
-                        // and add the new number of tiles (-1) to get the outer edge of possible tiles.
-                        // We subtract 1 from the scale_multiplier before adding to prevent an integer overflow
-                        // given that we're using a 16bit integer
-                        Some([
-                            orig_bbox[0] * scale_multiplier,
-                            orig_bbox[1] * scale_multiplier,
-                            orig_bbox[2] * scale_multiplier + (scale_multiplier - 1),
-                            orig_bbox[3] * scale_multiplier + (scale_multiplier - 1),
-                        ])
-                    }
-                }
-                None => None,
-            };
+            let adjusted_bbox = self.bbox.map(|bbox| adjust_bbox_zoom(bbox, self.zoom, target_z));
 
             MatchOpts { zoom: target_z, proximity: adjusted_proximity, bbox: adjusted_bbox }
         }
+    }
+
+    pub fn with_nearby_only(&self) -> MatchOpts {
+        let mut constrained = self.clone();
+        let prox = if let Some(prox) = constrained.proximity {
+            prox.clone()
+        } else {
+            return constrained;
+        };
+
+        let miles_per_tile = EARTH_CIRC_IN_MILES / ((1 << constrained.zoom) as f64);
+        let padding = (NEARBY_RADIUS / miles_per_tile).ceil() as u16;
+
+        let mut new_box: [u16; 4] = [
+            if prox[0] < padding { 0 } else { prox[0] - padding }, // prevent overflows because this is unsigned
+            if prox[1] < padding { 0 } else { prox[1] - padding }, // ditto
+            prox[0] + padding,
+            prox[1] + padding,
+        ];
+
+        if let Some(old_box) = constrained.bbox {
+            new_box = [
+                std::cmp::max(old_box[0], new_box[0]),
+                std::cmp::max(old_box[1], new_box[1]),
+                std::cmp::min(old_box[2], new_box[2]),
+                std::cmp::min(old_box[3], new_box[3]),
+            ]
+        }
+
+        constrained.bbox = Some(new_box);
+        constrained
     }
 }
 
@@ -193,20 +192,16 @@ mod tests {
     use super::*;
     use once_cell::sync::Lazy;
 
-    fn matchopts_proximity_generator(point: [u16; 2], radius: f64, zoom: u16) -> MatchOpts {
-        MatchOpts {
-            proximity: Some(Proximity { point: point, radius: radius }),
-            zoom: zoom,
-            ..MatchOpts::default()
-        }
+    fn matchopts_proximity_generator(point: [u16; 2], zoom: u16) -> MatchOpts {
+        MatchOpts { proximity: Some(point), zoom: zoom, ..MatchOpts::default() }
     }
 
     #[test]
     fn adjust_to_zoom_test_proximity() {
         static MATCH_OPTS_PROXIMITY: Lazy<(MatchOpts, MatchOpts, MatchOpts)> = Lazy::new(|| {
-            let match_opts1 = matchopts_proximity_generator([2, 28], 400., 14);
-            let match_opts2 = matchopts_proximity_generator([11, 25], 400., 6);
-            let match_opts3 = matchopts_proximity_generator([6, 6], 400., 4);
+            let match_opts1 = matchopts_proximity_generator([2, 28], 14);
+            let match_opts2 = matchopts_proximity_generator([11, 25], 6);
+            let match_opts3 = matchopts_proximity_generator([6, 6], 4);
             (match_opts1, match_opts2, match_opts3)
         });
 
@@ -215,42 +210,38 @@ mod tests {
             adjusted_match_opts1.zoom, 6,
             "Adjusted MatchOpts should have target zoom as zoom"
         );
-        assert_eq!(adjusted_match_opts1.proximity.unwrap().point, [0, 0], "should be 0,0");
+        assert_eq!(adjusted_match_opts1.proximity.unwrap(), [0, 0], "should be 0,0");
 
         let adjusted_match_opts2 = MATCH_OPTS_PROXIMITY.1.adjust_to_zoom(8);
         assert_eq!(
             adjusted_match_opts2.zoom, 8,
             "Adjusted MatchOpts should have target zoom as zoom"
         );
-        assert_eq!(adjusted_match_opts2.proximity.unwrap().point, [45, 101], "Should be 45, 101");
+        assert_eq!(adjusted_match_opts2.proximity.unwrap(), [45, 101], "Should be 45, 101");
 
         let same_zoom = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(4);
         assert_eq!(same_zoom, MATCH_OPTS_PROXIMITY.2, "If the zoom is the same as the original, adjusted MatchOpts should be a clone of the original");
         let zoomed_out_1z = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(3);
         let proximity_out_1z = zoomed_out_1z.proximity.unwrap();
-        assert_eq!(proximity_out_1z.point, [3, 3], "4/6/6 zoomed out to zoom 3 should be 3/3/3");
-        assert_eq!(
-            proximity_out_1z.radius, 400.,
-            "The adjusted radius should be the original radius"
-        );
+        assert_eq!(proximity_out_1z, [3, 3], "4/6/6 zoomed out to zoom 3 should be 3/3/3");
         assert_eq!(zoomed_out_1z.zoom, 3, "The adjusted zoom should be the target zoom");
 
         let zoomed_out_2z = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(2);
         let proximity_out_2z = zoomed_out_2z.proximity.unwrap();
-        assert_eq!(proximity_out_2z.point, [1, 1], "4/6/6 zoomed out to zoom 2 should be 2/1/1");
+        assert_eq!(proximity_out_2z, [1, 1], "4/6/6 zoomed out to zoom 2 should be 2/1/1");
 
         let zoomed_in_1z = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(5);
         let proximity_in_1z = zoomed_in_1z.proximity.unwrap();
-        assert_eq!(proximity_in_1z.point, [12, 12], "4/6/6 zoomed in to zoom 5 should be 5/12/12");
+        assert_eq!(proximity_in_1z, [12, 12], "4/6/6 zoomed in to zoom 5 should be 5/12/12");
         assert_eq!(zoomed_in_1z.zoom, 5, "The adjusted zoom should be the target zoom");
 
         let zoomed_in_2z = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(6);
         let proximity_in_2z = zoomed_in_2z.proximity.unwrap();
-        assert_eq!(proximity_in_2z.point, [25, 25], "4/6/6 zoomed in to zoom 6 should be 6/25/25");
+        assert_eq!(proximity_in_2z, [25, 25], "4/6/6 zoomed in to zoom 6 should be 6/25/25");
 
         let zoomed_in_3z = MATCH_OPTS_PROXIMITY.2.adjust_to_zoom(7);
         let proximity_in_3z = zoomed_in_3z.proximity.unwrap();
-        assert_eq!(proximity_in_3z.point, [51, 51], "4/6/6 zoomed in to zoom 7 should be 7/51/51");
+        assert_eq!(proximity_in_3z, [51, 51], "4/6/6 zoomed in to zoom 7 should be 7/51/51");
     }
 
     fn matchopts_bbox_generator(bbox: [u16; 4], zoom: u16) -> MatchOpts {
@@ -338,6 +329,36 @@ mod tests {
             "Multi-tile parent zoomed in one zoom level includes all the higher-zoom tiles"
         );
     }
+
+    #[test]
+    fn nearby_only() {
+        let opts = matchopts_proximity_generator([100, 100], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([83, 83, 117, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+
+        let opts = matchopts_proximity_generator([100, 100], 6);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([99, 99, 101, 101]), proximity: Some([100, 100]), zoom: 6 }
+        );
+
+        // truncate at the antemeridian
+        let opts = matchopts_proximity_generator([5, 5], 14);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([0, 0, 22, 22]), proximity: Some([5, 5]), zoom: 14 }
+        );
+
+        // test interaction between existing bbox and limiter
+        let mut opts = matchopts_proximity_generator([100, 100], 14);
+        opts.bbox = Some([90, 70, 115, 180]);
+        assert_eq!(
+            opts.with_nearby_only(),
+            MatchOpts { bbox: Some([90, 83, 115, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+    }
 }
 
 // keys consist of a marker byte indicating type (regular entry, prefix cache, etc.) followed by
@@ -383,28 +404,141 @@ pub struct CoalesceEntry {
     pub mask: u32,
     pub distance: f64,
     pub scoredist: f64,
+    pub phrasematch_id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialOrd, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoalesceContext {
     pub mask: u32,
     pub relev: f64,
     pub entries: Vec<CoalesceEntry>,
 }
 
-fn serialize_path<S: Serializer, T: Borrow<GridStore>>(store: &T, s: S) -> Result<S::Ok, S::Error> {
-    s.serialize_str(store.borrow().path.to_str().unwrap())
+impl CoalesceContext {
+    #[inline(always)]
+    fn sort_key(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>, Reverse<u16>, u16, u16, u32) {
+        (
+            OrderedFloat(self.relev),
+            OrderedFloat(self.entries[0].scoredist),
+            Reverse(self.entries[0].idx),
+            self.entries[0].grid_entry.x,
+            self.entries[0].grid_entry.y,
+            self.entries[0].grid_entry.id,
+        )
+    }
+}
+
+impl Ord for CoalesceContext {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.sort_key().cmp(&other.sort_key())
+    }
+}
+impl PartialOrd for CoalesceContext {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for CoalesceContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.sort_key() == other.sort_key()
+    }
+}
+impl Eq for CoalesceContext {}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MatchKeyWithId {
+    pub key: MatchKey,
+    #[serde(default)]
+    pub nearby_only: bool,
+    pub id: u32,
+    #[serde(default)]
+    pub phrase_length: usize,
+}
+
+impl Default for MatchKeyWithId {
+    fn default() -> Self {
+        MatchKeyWithId {
+            key: MatchKey::default(),
+            nearby_only: false,
+            id: 0,
+            // default is 2 because 1 has special behaviors that we might not want to opt into
+            // in the typical test case
+            phrase_length: 2,
+        }
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
 pub struct PhrasematchSubquery<T: Borrow<GridStore> + Clone> {
-    #[serde(serialize_with = "serialize_path")]
     pub store: T,
-    pub weight: f64,
-    pub match_key: MatchKey,
     pub idx: u16,
-    pub zoom: u16,
+    #[serde(serialize_with = "serialize_fixedbitset")]
+    pub non_overlapping_indexes: FixedBitSet, // the field formerly known as bmask
+    pub weight: f64,
     pub mask: u32,
+    pub match_keys: Vec<MatchKeyWithId>,
+}
+
+fn serialize_fixedbitset<S>(bits: &FixedBitSet, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.collect_seq(bits.ones())
+}
+
+pub struct ConstrainedPriorityQueue<T: Ord> {
+    pub max_size: usize,
+    heap: MinMaxHeap<T>,
+}
+
+impl<T: Ord> ConstrainedPriorityQueue<T> {
+    pub fn new(max_size: usize) -> Self {
+        ConstrainedPriorityQueue { max_size, heap: MinMaxHeap::new() }
+    }
+
+    pub fn push(&mut self, element: T) -> bool {
+        if self.heap.len() >= self.max_size {
+            if let Some(min) = self.heap.peek_min() {
+                if element > *min {
+                    self.heap.replace_min(element);
+                    return true;
+                }
+            }
+        } else {
+            self.heap.push(element);
+            return true;
+        }
+        false
+    }
+
+    pub fn pop_max(&mut self) -> Option<T> {
+        self.heap.pop_max()
+    }
+
+    pub fn peek_min(&self) -> Option<&T> {
+        self.heap.peek_min()
+    }
+
+    pub fn peek_max(&self) -> Option<&T> {
+        self.heap.peek_max()
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn into_vec_desc(self) -> Vec<T> {
+        self.heap.into_vec_desc()
+    }
+}
+
+impl<T: Ord> IntoIterator for ConstrainedPriorityQueue<T> {
+    type Item = T;
+    type IntoIter = min_max_heap::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.heap.into_iter()
+    }
 }
 
 #[inline]
