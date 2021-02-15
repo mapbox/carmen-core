@@ -4,7 +4,7 @@ use carmen_core::gridstore::{
 };
 
 use neon::prelude::*;
-use neon::{class_definition, declare_types, impl_managed, register_module};
+use neon::{declare_types, register_module};
 use neon_serde::errors::Result as LibResult;
 use serde::Deserialize;
 use owning_ref::OwningHandle;
@@ -39,9 +39,10 @@ impl Task for CoalesceTask {
                 Err(s) => return cx.throw_error(s),
             }
         };
-        Ok(neon_serde::to_value(&mut cx, converted_result)?
-            .downcast::<JsArray>()
-            .or_throw(&mut cx)?)
+        match neon_serde::to_value(&mut cx, converted_result) {
+            Ok(v) => v.downcast::<JsArray>().or_else(|e| cx.throw_error(e.to_string())),
+            Err(e) => cx.throw_error(e.to_string())
+        }
     }
 }
 
@@ -69,9 +70,10 @@ impl Task for StackAndCoalesceTask {
                 Err(s) => return cx.throw_error(s),
             }
         };
-        Ok(neon_serde::to_value(&mut cx, converted_result)?
-            .downcast::<JsArray>()
-            .or_throw(&mut cx)?)
+        match neon_serde::to_value(&mut cx, converted_result) {
+            Ok(v) => v.downcast::<JsArray>().or_else(|e| cx.throw_error(e.to_string())),
+            Err(e) => cx.throw_error(e.to_string())
+        }
     }
 }
 
@@ -97,7 +99,11 @@ declare_types! {
         }
 
         method insert(mut cx) {
-            let (key, values) = prep_for_insert(&mut cx)?;
+            let (key, values) = match prep_for_insert(&mut cx) {
+                Ok(kv) => kv,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
+
             let mut this = cx.this();
 
             // lock falls out of scope at the end of this block
@@ -123,7 +129,11 @@ declare_types! {
         }
 
         method append(mut cx) {
-            let (key, values) = prep_for_insert(&mut cx)?;
+            let (key, values) = match prep_for_insert(&mut cx) {
+                Ok(kv) => kv,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
+
             let mut this = cx.this();
 
             // lock falls out of scope at the end of this block
@@ -157,7 +167,10 @@ declare_types! {
                 .value() as u32;
 
             let js_lang_set = grid_key.get(&mut cx, "lang_set")?;
-            let lang_set: u128 = langarray_to_langset(&mut cx, js_lang_set)?;
+            let lang_set: u128 = match langarray_to_langset(&mut cx, js_lang_set) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
             let key = GridKey { phrase_id, lang_set };
 
@@ -166,7 +179,10 @@ declare_types! {
             let id = cx.argument::<JsNumber>(3)?.value() as u32;
             let source_phrase_hash = cx.argument::<JsNumber>(4)?.value() as u8;
             let js_coords = cx.argument::<JsValue>(5)?;
-            let coords: Vec<(u16, u16)> = neon_serde::from_value(&mut cx, js_coords)?;
+            let coords: Vec<(u16, u16)> = match neon_serde::from_value(&mut cx, js_coords) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
             let mut this = cx.this();
 
@@ -283,7 +299,10 @@ declare_types! {
             let filename = cx.argument::<JsString>(0)?.value();
             let store = match cx.argument_opt(1) {
                 Some(arg) => {
-                    let opts: GridStoreOpts = neon_serde::from_value(&mut cx, arg)?;
+                    let opts: GridStoreOpts = match neon_serde::from_value(&mut cx, arg) {
+                        Ok(v) => v,
+                        Err(e) => return cx.throw_type_error(e.to_string())
+                    };
 
                     GridStore::new_with_options(
                         filename,
@@ -312,7 +331,10 @@ declare_types! {
                 .value() as u32;
 
             let js_lang_set = grid_key.get(&mut cx, "lang_set")?;
-            let lang_set: u128 = langarray_to_langset(&mut cx, js_lang_set)?;
+            let lang_set: u128 = match langarray_to_langset(&mut cx, js_lang_set) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
             let key = GridKey { phrase_id, lang_set };
 
@@ -326,7 +348,7 @@ declare_types! {
             };
 
             match result {
-                Ok(Some(v)) => Ok(neon_serde::to_value(&mut cx, &v)?),
+                Ok(Some(v)) => neon_serde::to_value(&mut cx, &v).or_else(|e| cx.throw_type_error(e.to_string())),
                 Ok(None) => Ok(JsUndefined::new().upcast()),
                 Err(e) => cx.throw_type_error(e.to_string())
             }
@@ -442,8 +464,14 @@ pub fn js_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let js_phrase_subq = { cx.argument::<JsArray>(0)? };
     let js_match_ops = { cx.argument::<JsValue>(1)? };
     let phrase_subq: Vec<PhrasematchSubquery<ArcGridStore>> =
-        deserialize_phrasesubq(&mut cx, js_phrase_subq)?;
-    let match_opts: MatchOpts = neon_serde::from_value(&mut cx, js_match_ops)?;
+        match deserialize_phrasesubq(&mut cx, js_phrase_subq) {
+            Ok(v) => v,
+            Err(e) => return cx.throw_type_error(e.to_string())
+        };
+    let match_opts: MatchOpts = match neon_serde::from_value(&mut cx, js_match_ops) {
+        Ok(v) => v,
+        Err(e) => return cx.throw_type_error(e.to_string())
+    };
     let cb = cx.argument::<JsFunction>(2)?;
 
     let task = CoalesceTask { argument: (phrase_subq, match_opts) };
@@ -456,8 +484,14 @@ pub fn js_stack_and_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let js_phrase_subq = { cx.argument::<JsArray>(0)? };
     let js_match_ops = { cx.argument::<JsValue>(1)? };
     let phrase_subq: Vec<PhrasematchSubquery<ArcGridStore>> =
-        deserialize_phrasesubq(&mut cx, js_phrase_subq)?;
-    let match_opts: MatchOpts = neon_serde::from_value(&mut cx, js_match_ops)?;
+        match deserialize_phrasesubq(&mut cx, js_phrase_subq) {
+            Ok(v) => v,
+            Err(e) => return cx.throw_type_error(e.to_string())
+        };
+    let match_opts: MatchOpts = match neon_serde::from_value(&mut cx, js_match_ops) {
+        Ok(v) => v,
+        Err(e) => return cx.throw_type_error(e.to_string())
+    };
     let cb = cx.argument::<JsFunction>(2)?;
 
     let task = StackAndCoalesceTask { argument: (phrase_subq, match_opts) };
@@ -533,7 +567,10 @@ where
 pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let js_phrasematch_result = { cx.argument::<JsArray>(0)? };
     let phrasematch_results: Vec<PhrasematchSubquery<ArcGridStore>> =
-        deserialize_phrasesubq(&mut cx, js_phrasematch_result)?;
+        match deserialize_phrasesubq(&mut cx, js_phrasematch_result) {
+            Ok(v) => v,
+            Err(e) => return cx.throw_type_error(e.to_string())
+        };
     stackable(&phrasematch_results);
 
     Ok(cx.undefined())

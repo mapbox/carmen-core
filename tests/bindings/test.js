@@ -167,7 +167,7 @@ tape('Coalesce tests - invalid inputs', (t) => {
         zoom: 6,
         mask: 1 << 1,
     }];
-    t.throws(() => {addon.coalesce(no_store, {}, () => {})}, /failed downcast to JsGridStore/, 'invalid stack');
+    t.throws(() => {addon.coalesce(no_store, {}, () => {})}, /JS exception/, 'invalid stack');
 
     const no_match_key = [{
         store: reader,
@@ -362,13 +362,13 @@ tape('lang_set >= 128', (t) => {
             }
         },
         idx: 1,
-        zoom: 14,
+        zoom: 6,
         mask: 1 << 0,
         id: 0,
         phrase: 'hey'
     }];
 
-    addon.coalesce(lang_set_stack, { zoom: 14 }, (err, res) => {
+    addon.coalesce(lang_set_stack, { zoom: 6 }, (err, res) => {
         t.deepEqual(res[0].entries[0].matches_language, false, 'does not match language - ignore lang_set > 128');
         t.deepEqual(res[0].relev, 0.96, 'relevance penalised - ignore lang_set > 128');
     });
