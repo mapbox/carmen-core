@@ -14,14 +14,11 @@ declare_types! {
         }
 
         method insert(mut cx) {
-            let phrase_array = cx.argument::<JsArray>(0)?;
-
-            let mut v: Vec<String> = Vec::with_capacity(phrase_array.len() as usize);
-
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(&mut cx, i)?.downcast::<JsString>().or_throw(&mut cx)?.value();
-                v.push(string);
-            }
+            let js_phrase = cx.argument::<JsValue>(0)?;
+            let phrase: Vec<String> = match neon_serde::from_value(&mut cx, js_phrase) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
             let mut this = cx.this();
 
@@ -30,7 +27,7 @@ declare_types! {
                 let mut fp_builder = this.borrow_mut(&lock);
                 match fp_builder.as_mut() {
                     Some(builder) => {
-                        builder.insert(v.as_slice()).map_err(|e| e.to_string())
+                        builder.insert(phrase.as_slice()).map_err(|e| e.to_string())
                     }
                     None => {
                         Err("unable to insert()".to_string())
@@ -45,8 +42,8 @@ declare_types! {
         }
 
         method loadWordReplacements(mut cx) {
-            let word_array = { cx.argument::<JsValue>(0)? };
-            let word_replacements: Vec<WordReplacement> = match neon_serde::from_value(&mut cx, word_array) {
+            let js_word_replacements = cx.argument::<JsValue>(0)?;
+            let word_replacements: Vec<WordReplacement> = match neon_serde::from_value(&mut cx, js_word_replacements) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -120,14 +117,14 @@ declare_types! {
         }
 
         method contains(mut cx) {
-            let phrase_array = cx.argument::<JsValue>(0)?;
-            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+            let js_phrase = cx.argument::<JsValue>(0)?;
+            let phrase: Vec<String> = match neon_serde::from_value(&mut cx, js_phrase) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
 
-            let arg1 = cx.argument::<JsValue>(1)?;
-            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg1) {
+            let js_ending_type = cx.argument::<JsValue>(1)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, js_ending_type) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -138,7 +135,7 @@ declare_types! {
                 let lock = cx.lock();
                 let set = this.borrow_mut(&lock);
 
-                set.contains(v.as_slice(), ending_type).map_err(|e| e.to_string())
+                set.contains(phrase.as_slice(), ending_type).map_err(|e| e.to_string())
             };
 
             match result {
@@ -148,8 +145,8 @@ declare_types! {
         }
 
         method fuzzyMatch(mut cx) {
-            let phrase_array = cx.argument::<JsValue>(0)?;
-            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+            let js_phrase = cx.argument::<JsValue>(0)?;
+            let phrase: Vec<String> = match neon_serde::from_value(&mut cx, js_phrase) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -157,8 +154,8 @@ declare_types! {
             let max_word_dist = cx.argument::<JsNumber>(1)?.value() as u8;
             let max_phrase_dist = cx.argument::<JsNumber>(2)?.value() as u8;
 
-            let arg3 = cx.argument::<JsValue>(3)?;
-            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg3) {
+            let js_ending_type = cx.argument::<JsValue>(3)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, js_ending_type) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -169,7 +166,7 @@ declare_types! {
                 let lock = cx.lock();
                 let set = this.borrow_mut(&lock);
 
-                set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
+                set.fuzzy_match(phrase.as_slice(), max_word_dist, max_phrase_dist, ending_type)
             };
 
             match result {
@@ -184,8 +181,8 @@ declare_types! {
         }
 
         method fuzzyMatchWindows(mut cx) {
-            let phrase_array = cx.argument::<JsValue>(0)?;
-            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+            let js_phrase = cx.argument::<JsValue>(0)?;
+            let phrase: Vec<String> = match neon_serde::from_value(&mut cx, js_phrase) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -193,8 +190,8 @@ declare_types! {
             let max_word_dist = cx.argument::<JsNumber>(1)?.value() as u8;
             let max_phrase_dist = cx.argument::<JsNumber>(2)?.value() as u8;
 
-            let arg3 = cx.argument::<JsValue>(3)?;
-            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg3) {
+            let js_ending_type = cx.argument::<JsValue>(3)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, js_ending_type) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -205,7 +202,7 @@ declare_types! {
                 let lock = cx.lock();
                 let set = this.borrow_mut(&lock);
 
-                set.fuzzy_match_windows(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
+                set.fuzzy_match_windows(phrase.as_slice(), max_word_dist, max_phrase_dist, ending_type)
             };
 
             match result {
@@ -220,8 +217,8 @@ declare_types! {
         }
 
         method fuzzyMatchMulti(mut cx) {
-            let arg0 = cx.argument::<JsValue>(0)?;
-            let multi_array: Vec<(Vec<String>, EndingType)> = match neon_serde::from_value(&mut cx, arg0) {
+            let js_phrases = cx.argument::<JsValue>(0)?;
+            let phrases: Vec<(Vec<String>, EndingType)> = match neon_serde::from_value(&mut cx, js_phrases) {
                 Ok(v) => v,
                 Err(e) => return cx.throw_type_error(e.to_string())
             };
@@ -235,7 +232,7 @@ declare_types! {
                 let lock = cx.lock();
                 let set = this.borrow_mut(&lock);
 
-                set.fuzzy_match_multi(multi_array.as_slice(), max_word_dist, max_phrase_dist)
+                set.fuzzy_match_multi(phrases.as_slice(), max_word_dist, max_phrase_dist)
             };
 
             match result {
