@@ -30,11 +30,6 @@ matrix:
       env: BUILDTYPE=release
       node_js: 14
 
-      addons:
-        apt:
-          packages:
-          - python3
-
       cache:
         directories:
         - $HOME/.cargo
@@ -66,17 +61,10 @@ matrix:
       env: BUILDTYPE=release
       node_js: 14
 
-      addons:
-        homebrew:
-          packages: python
-
       cache:
         directories:
         - $HOME/.cargo
         - $TRAVIS_BUILD_DIR/native/target
-
-      before_install:
-        - pip3 install travis-wait-improved
 
       install:
         - node -v
@@ -87,7 +75,7 @@ matrix:
         - source "$HOME/.cargo/env"
         - yarn install --ignore-scripts
         - neon clean
-        - travis-wait-improved --timeout 30m neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
+        - travis_wait 30 neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
 
       script:
         - yarn test
