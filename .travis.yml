@@ -2,7 +2,7 @@ matrix:
   include:
     - language: rust
       sudo: required
-      dist: xenial
+      dist: focal
       cache: cargo
       rust:
         - stable
