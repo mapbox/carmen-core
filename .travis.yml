@@ -43,6 +43,8 @@ matrix:
       install:
         - node -v
         - which node
+        - python3 --version
+        - which python3
         - curl https://sh.rustup.rs -sSf > /tmp/rustup.sh
         - sh /tmp/rustup.sh -y
         - export PATH="$HOME/.cargo/bin:$PATH"
@@ -64,10 +66,17 @@ matrix:
       env: BUILDTYPE=release
       node_js: 14
 
+      addons:
+        homebrew:
+          packages: python
+
       cache:
         directories:
         - $HOME/.cargo
         - $TRAVIS_BUILD_DIR/native/target
+
+      before_install:
+        - pip3 install travis-wait-improved
 
       install:
         - node -v
@@ -78,7 +87,7 @@ matrix:
         - source "$HOME/.cargo/env"
         - yarn install --ignore-scripts
         - neon clean
-        - neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
+        - travis-wait-improved --timeout 30m neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
 
       script:
         - yarn test
