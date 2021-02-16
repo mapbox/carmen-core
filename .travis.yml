@@ -26,6 +26,7 @@ matrix:
     - language: node_js
       sudo: false
       os: linux
+      dist: focal
       env: BUILDTYPE=release
       node_js: 14
 
