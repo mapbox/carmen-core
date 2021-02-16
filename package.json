@@ -21,7 +21,7 @@
     "@mapbox/cloudfriend": "^1.9.1",
     "codecov": "^3.3.0",
     "d3-queue": "^3.0.7",
-    "neon-cli": "^0.2.0",
+    "neon-cli": "^0.7.0",
     "nyc": "^14.0.0",
     "tape": "^4.10.2"
   },

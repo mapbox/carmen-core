@@ -1,335 +1,284 @@
-#[macro_use]
-extern crate neon;
-extern crate fuzzy_phrase;
-extern crate neon_serde;
-
-use neon::mem::Handle;
-use neon::vm::{This, Lock, FunctionCall, JsResult};
-use neon::js::{JsFunction, Object, JsString, Value, JsUndefined, JsArray, JsBoolean, JsNumber, JsInteger};
-use neon::js::binary::JsArrayBuffer;
-use neon::js::class::{JsClass, Class};
-use neon::js::error::{Kind, JsError};
+use neon::prelude::*;
+use neon::declare_types;
 
 use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet, WordReplacement, EndingType};
 
-trait CheckArgument {
-    fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V>;
-}
-
-impl<'a, T: This> CheckArgument for FunctionCall<'a, T> {
-    fn check_argument<V: Value>(&mut self, i: i32) -> JsResult<V> {
-        self.arguments.require(self.scope, i)?.check::<V>()
-    }
-}
-
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {
-        init(mut call) {
-            let filename = call
-                .check_argument::<JsString>(0)
-                ?.value();
-            match FuzzyPhraseSetBuilder::new(filename){
-                Ok(response) => {
-                    Ok(Some(response))
-                },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
+        init(mut cx) {
+            let filename = cx.argument::<JsString>(0)?.value();
+            match FuzzyPhraseSetBuilder::new(filename) {
+                Ok(s) => Ok(Some(s)),
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method insert(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+        method insert(mut cx) {
+            let phrase_array = cx.argument::<JsArray>(0)?;
 
-            let mut v: Vec<String> = Vec::new();
+            let mut v: Vec<String> = Vec::with_capacity(phrase_array.len() as usize);
 
             for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
-
+                let string = phrase_array.get(&mut cx, i)?.downcast::<JsString>().or_throw(&mut cx)?.value();
                 v.push(string);
             }
 
-            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(call.scope);
+            let mut this = cx.this();
 
-            let result = this.grab(|fuzzyphrasesetbuilder| {
-                match fuzzyphrasesetbuilder {
+            let insert: Result<u32, String> = {
+                let lock = cx.lock();
+                let mut fp_builder = this.borrow_mut(&lock);
+                match fp_builder.as_mut() {
                     Some(builder) => {
-                        match builder.insert(v.as_slice()) {
-                            Ok(tmp_id) => Ok(tmp_id),
-                            Err(e) => {
-                                println!("{:?}", e);
-                                JsError::throw(Kind::TypeError, e.description())
-                            }
-                        }
-                    },
+                        builder.insert(v.as_slice()).map_err(|e| e.to_string())
+                    }
                     None => {
-                        JsError::throw(Kind::TypeError, "unable to insert()")
+                        Err("unable to insert()".to_string())
                     }
                 }
-            });
+            };
 
-            Ok(JsNumber::new(call.scope, result? as f64).upcast())
+            match insert {
+                Ok(id) => Ok(JsNumber::new(&mut cx, id as f64).upcast()),
+                Err(e) => cx.throw_type_error(e)
+            }
         }
 
-        method loadWordReplacements(call) {
-            let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
-            let word_array = call.arguments.require(scope, 0)?;
-            let word_replacements: Vec<WordReplacement> = neon_serde::from_value(scope, word_array)?;
+        method loadWordReplacements(mut cx) {
+            let word_array = { cx.argument::<JsValue>(0)? };
+            let word_replacements: Vec<WordReplacement> = match neon_serde::from_value(&mut cx, word_array) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            this.grab(|fuzzyphrasesetbuilder| {
-                match fuzzyphrasesetbuilder {
+            let mut this = cx.this();
+
+            let load: Result<(), String> = {
+                let lock = cx.lock();
+                let mut fp_builder = this.borrow_mut(&lock);
+                match fp_builder.as_mut() {
                     Some(builder) => {
-                        match builder.load_word_replacements(word_replacements) {
-                            Ok(()) => Ok(JsUndefined::new().upcast()),
-                            Err(e) => {
-                                println!("{:?}", e);
-                                JsError::throw(Kind::TypeError, e.description())
-                            }
-                        }
-                    },
+                        builder.load_word_replacements(word_replacements).map_err(|e| e.to_string())
+                    }
                     None => {
-                        JsError::throw(Kind::TypeError, "unable to load_word_replacements()")
+                        Err("unable to load_word_replacements()".to_string())
                     }
                 }
-            })
+            };
+
+            match load {
+                Ok(()) => Ok(JsUndefined::new().upcast()),
+                Err(e) => cx.throw_type_error(e)
+            }
         }
 
-        method finish(call) {
-            let scope = call.scope;
-            let mut this: Handle<JsFuzzyPhraseSetBuilder> = call.arguments.this(scope);
+        method finish(mut cx) {
+            let mut this = cx.this();
 
-            let result = this.grab(|fuzzyphrasesetbuilder| {
-                match fuzzyphrasesetbuilder.take() {
-                    Some(builder) => {
-                        match builder.finish() {
-                            Ok(id_map) => Ok(id_map),
-                            Err(e) => {
-                                println!("{:?}", e);
-                                JsError::throw(Kind::TypeError, e.description())
-                            }
-                        }
-                    },
-                    None => {
-                        JsError::throw(Kind::TypeError, "unable to finish()")
-                    }
+            let finish = {
+                let lock = cx.lock();
+                let mut fp_builder = this.borrow_mut(&lock);
+                match fp_builder.take() {
+                    Some(builder) => builder.finish().map_err(|e| e.to_string()),
+                    None => Err("unable to finish()".to_string())
                 }
-            });
+            };
 
-            let id_map = result?;
-            let mut buffer = JsArrayBuffer::new(scope, (id_map.len() * std::mem::size_of::<u32>()) as u32)?;
-            buffer.grab(|mut data| {
-                // ick ick ick -- there's no way to view this buffer as u32 in neon 0.1, so
-                // this nastiness is necessary until we upgrade
-                let slice = unsafe {
-                    let ptr = std::mem::transmute::<*mut u8, *mut u32>(data.as_mut_ptr());
-                    std::slice::from_raw_parts_mut(ptr, id_map.len())
-                };
-                slice.copy_from_slice(id_map.as_slice());
-            });
-            Ok(buffer.upcast())
+            let convert = match finish {
+                Ok(id_map) => {
+                    let mut buffer = JsArrayBuffer::new(&mut cx, (id_map.len() * std::mem::size_of::<u32>()) as u32)?;
+
+                    let lock = cx.lock();
+                    let result = match buffer.try_borrow_mut(&lock) {
+                        Ok(data) => {
+                            let slice = data.as_mut_slice::<u32>();
+                            slice.copy_from_slice(id_map.as_slice());
+
+                            Ok(())
+                        },
+                        Err(e) => Err(e.to_string())
+                    };
+                    result.map(|_| buffer)
+                },
+                Err(e) => Err(e)
+            };
+
+            match convert {
+                Ok(buffer) => Ok(buffer.upcast()),
+                Err(e) => cx.throw_type_error(e)
+            }
         }
     }
 
     pub class JsFuzzyPhraseSet as JsFuzzyPhraseSet for FuzzyPhraseSet {
-        init(mut call) {
-            let filepath = call
-                .check_argument::<JsString>(0)
-                ?.value();
-            match FuzzyPhraseSet::from_path(filepath) {
-                Ok(set) => {
-                    Ok(set)
-                },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
+        init(mut cx) {
+            let filename = cx.argument::<JsString>(0)?.value();
+            match FuzzyPhraseSet::from_path(filename) {
+                Ok(s) => Ok(s),
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method contains(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
+        method contains(mut cx) {
+            let phrase_array = cx.argument::<JsValue>(0)?;
+            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            let arg1 = call.arguments.require(call.scope, 1)?;
-            let ending_type: EndingType = neon_serde::from_value(
-                call.scope,
-                arg1
-            )?;
+            let arg1 = cx.argument::<JsValue>(1)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg1) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            let mut v: Vec<String> = Vec::new();
+            let mut this = cx.this();
 
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
 
-                v.push(string);
+                set.contains(v.as_slice(), ending_type).map_err(|e| e.to_string())
+            };
+
+            match result {
+                Ok(found) => Ok(JsBoolean::new(&mut cx, found).upcast()),
+                Err(e) => cx.throw_type_error(e)
             }
-
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
-
-            let result = this.grab(|set| {
-                match set.contains(v.as_slice(), ending_type) {
-                    Ok(response) => {
-                        Ok(response)
-                    },
-                    Err(e) => {
-                        println!("{:?}", e);
-                        JsError::throw(Kind::TypeError, e.description())
-                    }
-                }
-            });
-
-            Ok(JsBoolean::new(
-                call.scope,
-                result?
-            ).upcast())
         }
 
-        method fuzzyMatch(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
-            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
-                ?.value() as u8;
-            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
-                ?.value() as u8;
+        method fuzzyMatch(mut cx) {
+            let phrase_array = cx.argument::<JsValue>(0)?;
+            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            let arg3 = call.arguments.require(call.scope, 3)?;
-            let ending_type: EndingType = neon_serde::from_value(
-                call.scope,
-                arg3
-            )?;
+            let max_word_dist = cx.argument::<JsNumber>(1)?.value() as u8;
+            let max_phrase_dist = cx.argument::<JsNumber>(2)?.value() as u8;
 
-            let mut v: Vec<String> = Vec::new();
+            let arg3 = cx.argument::<JsValue>(3)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg3) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
+            let mut this = cx.this();
 
-                v.push(string);
-            }
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
 
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
-
-            let result = this.grab(|set| {
                 set.fuzzy_match(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
-            });
+            };
 
             match result {
-                Ok(vec) => {
-                    let array = neon_serde::to_value(call.scope, &vec)?;
-
-                    Ok(array.upcast())
+                Ok(matches) => {
+                    match neon_serde::to_value(&mut cx, &matches) {
+                        Ok(serialized) => Ok(serialized.upcast()),
+                        Err(e) => cx.throw_type_error(e.to_string())
+                    }
                 },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method fuzzyMatchWindows(call) {
-            let phrase_array = call.arguments.require(call.scope, 0)?.check::<JsArray>()?;
-            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
-                ?.value() as u8;
-            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
-                ?.value() as u8;
+        method fuzzyMatchWindows(mut cx) {
+            let phrase_array = cx.argument::<JsValue>(0)?;
+            let v: Vec<String> = match neon_serde::from_value(&mut cx, phrase_array) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            let arg3 = call.arguments.require(call.scope, 3)?;
-            let ending_type: EndingType = neon_serde::from_value(
-                call.scope,
-                arg3
-            )?;
+            let max_word_dist = cx.argument::<JsNumber>(1)?.value() as u8;
+            let max_phrase_dist = cx.argument::<JsNumber>(2)?.value() as u8;
 
-            let mut v: Vec<String> = Vec::new();
+            let arg3 = cx.argument::<JsValue>(3)?;
+            let ending_type: EndingType = match neon_serde::from_value(&mut cx, arg3) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            for i in 0..phrase_array.len() {
-                let string = phrase_array.get(call.scope, i)
-                ?.check::<JsString>()
-                ?.value();
+            let mut this = cx.this();
 
-                v.push(string);
-            }
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
 
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
-
-            let result = this.grab(|set| {
                 set.fuzzy_match_windows(v.as_slice(), max_word_dist, max_phrase_dist, ending_type)
-            });
+            };
 
             match result {
-                Ok(vec) => {
-                    let array = neon_serde::to_value(call.scope, &vec)?;
-
-                    Ok(array.upcast())
+                Ok(matches) => {
+                    match neon_serde::to_value(&mut cx, &matches) {
+                        Ok(serialized) => Ok(serialized.upcast()),
+                        Err(e) => cx.throw_type_error(e.to_string())
+                    }
                 },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method fuzzyMatchMulti(call) {
-            let arg0 = call.arguments.require(call.scope, 0)?;
-            let multi_array: Vec<(Vec<String>, EndingType)> = neon_serde::from_value(
-                call.scope,
-                arg0
-            )?;
+        method fuzzyMatchMulti(mut cx) {
+            let arg0 = cx.argument::<JsValue>(0)?;
+            let multi_array: Vec<(Vec<String>, EndingType)> = match neon_serde::from_value(&mut cx, arg0) {
+                Ok(v) => v,
+                Err(e) => return cx.throw_type_error(e.to_string())
+            };
 
-            let max_word_dist: u8 = call.arguments.require(call.scope, 1)?.check::<JsInteger>()
-                ?.value() as u8;
-            let max_phrase_dist: u8 = call.arguments.require(call.scope, 2)?.check::<JsInteger>()
-                ?.value() as u8;
+            let max_word_dist = cx.argument::<JsNumber>(1)?.value() as u8;
+            let max_phrase_dist = cx.argument::<JsNumber>(2)?.value() as u8;
 
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+            let mut this = cx.this();
 
-            let result = this.grab(|set| {
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
+
                 set.fuzzy_match_multi(multi_array.as_slice(), max_word_dist, max_phrase_dist)
-            });
+            };
 
             match result {
-                Ok(vec) => {
-                    let array = neon_serde::to_value(call.scope, &vec)?;
-
-                    Ok(array.upcast())
+                Ok(matches) => {
+                    match neon_serde::to_value(&mut cx, &matches) {
+                        Ok(serialized) => Ok(serialized.upcast()),
+                        Err(e) => cx.throw_type_error(e.to_string())
+                    }
                 },
-                Err(e) => {
-                    println!("{:?}", e);
-                    JsError::throw(Kind::TypeError, e.description())
-                }
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method getByPhraseId(call) {
-            let arg0 = call.arguments.require(call.scope, 0)?;
-            let phrase_id: u32 = neon_serde::from_value(call.scope, arg0)?;
+        method getByPhraseId(mut cx) {
+            let phrase_id: u32 = cx.argument::<JsNumber>(0)?.value() as u32;
 
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+            let mut this = cx.this();
 
-            let result = this.grab(|set| {
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
+
                 set.get_by_phrase_id(phrase_id)
-            });
+            };
 
             match result {
-                Ok(Some(vec)) => Ok(neon_serde::to_value(call.scope, &vec)?.upcast()),
+                Ok(Some(v)) => neon_serde::to_value(&mut cx, &v).or_else(|e| cx.throw_type_error(e.to_string())),
                 Ok(None) => Ok(JsUndefined::new().upcast()),
-                Err(e) => JsError::throw(Kind::TypeError, e.description())
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
 
-        method getPrefixBins(call) {
-            let arg0 = call.arguments.require(call.scope, 0)?;
-            let max_bin_size: usize = neon_serde::from_value(call.scope, arg0)?;
+        method getPrefixBins(mut cx) {
+            let max_bin_size: usize = cx.argument::<JsNumber>(0)?.value() as usize;
 
-            let mut this: Handle<JsFuzzyPhraseSet> = call.arguments.this(call.scope);
+            let mut this = cx.this();
 
-            let result = this.grab(|set| {
+            let result = {
+                let lock = cx.lock();
+                let set = this.borrow_mut(&lock);
+
                 set.get_prefix_bins(max_bin_size)
-            });
+            };
 
             match result {
                 Ok(bins) => {
@@ -338,32 +287,25 @@ declare_types! {
                         bare_ids.push(bin.last.value() as u32 + 1);
                     }
 
-                    let mut buffer = JsArrayBuffer::new(call.scope, (bare_ids.len() * std::mem::size_of::<u32>()) as u32)?;
-                    buffer.grab(|mut data| {
-                        // again, there's no way to view this buffer as u32 in neon 0.1
-                        let slice = unsafe {
-                            let ptr = std::mem::transmute::<*mut u8, *mut u32>(data.as_mut_ptr());
-                            std::slice::from_raw_parts_mut(ptr, bare_ids.len())
-                        };
-                        slice.copy_from_slice(bare_ids.as_slice());
-                    });
-                    Ok(buffer.upcast())
+                    let mut buffer = JsArrayBuffer::new(&mut cx, (bare_ids.len() * std::mem::size_of::<u32>()) as u32)?;
+                    let lock = cx.lock();
+                    let result = match buffer.try_borrow_mut(&lock) {
+                        Ok(data) => {
+                            let slice = data.as_mut_slice::<u32>();
+                            slice.copy_from_slice(bare_ids.as_slice());
+
+                            Ok(())
+                        },
+                        Err(e) => Err(e.to_string())
+                    };
+
+                    match result {
+                        Ok(()) => Ok(buffer.upcast()),
+                        Err(e) => cx.throw_type_error(e.to_string())
+                    }
                 },
-                Err(e) => JsError::throw(Kind::TypeError, e.description())
+                Err(e) => cx.throw_type_error(e.to_string())
             }
         }
     }
 }
-
-register_module!(m, {
-
-    let class: Handle<JsClass<JsFuzzyPhraseSetBuilder>> = try!(JsFuzzyPhraseSetBuilder::class(m.scope));
-    let constructor: Handle<JsFunction<JsFuzzyPhraseSetBuilder>> = try!(class.constructor(m.scope));
-    try!(m.exports.set("FuzzyPhraseSetBuilder", constructor));
-
-    let class: Handle<JsClass<JsFuzzyPhraseSet>> = try!(JsFuzzyPhraseSet::class(m.scope));
-    let constructor: Handle<JsFunction<JsFuzzyPhraseSet>> = try!(class.constructor(m.scope));
-    try!(m.exports.set("FuzzyPhraseSet", constructor));
-
-    Ok(())
-});

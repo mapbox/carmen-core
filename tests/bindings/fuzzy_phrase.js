@@ -4,7 +4,7 @@ const tape = require('tape');
 const tmp = require('tmp');
 const rimraf = require('rimraf').sync;
 const fs = require('fs');
-const fuzzy = require('../lib');
+const fuzzy = require('../../');
 
 tape('build FuzzyPhraseSetBuilder', (t) => {
     const tmpDir = tmp.dirSync();

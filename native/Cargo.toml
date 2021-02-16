@@ -24,3 +24,4 @@ owning_ref = "0.4"
 fixedbitset = "0.3.0"
 rayon = "1.3.0"
 carmen-core = { path = "../" }
+fuzzy-phrase = { git = "https://github.com/mapbox/fuzzy-phrase", rev = "388e417d09f4b40f052dcf59a4a98b767c41799c" }

@@ -7,4 +7,10 @@ addon.GridStore.prototype.keys = function() {
     return out;
 }
 
+addon.ENDING_TYPE = {
+    nonPrefix: 0,
+    anyPrefix: 1,
+    wordBoundaryPrefix: 2,
+}
+
 module.exports = addon;
