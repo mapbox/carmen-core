@@ -553,17 +553,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e98cdd7a8f84ad67b8b3b15806a2972914533d3af7e4ec32cb24e3a101955b9"
 dependencies = [
  "cslice",
- "neon-build 0.7.1",
+ "neon-build",
  "neon-runtime",
  "semver",
  "smallvec 1.6.1",
 ]
-
-[[package]]
-name = "neon-build"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "870c8f0b18ce83d8af6d95b9b723678aef55c047f29e09ac3e3d10ceecf57fd0"
 
 [[package]]
 name = "neon-build"
@@ -615,7 +609,7 @@ dependencies = [
  "fixedbitset",
  "fuzzy-phrase",
  "neon",
- "neon-build 0.2.0",
+ "neon-build",
  "neon-serde",
  "owning_ref",
  "rayon",

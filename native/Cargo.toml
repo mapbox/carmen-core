@@ -9,10 +9,10 @@ edition = "2018"
 
 [lib]
 name = "node_carmen_core"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [build-dependencies]
-neon-build = "0.2.0"
+neon-build = "0.7.1"
 
 [dependencies]
 neon = "0.7.1"
