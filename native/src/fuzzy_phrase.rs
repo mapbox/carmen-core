@@ -1,7 +1,7 @@
-use neon::prelude::*;
 use neon::declare_types;
+use neon::prelude::*;
 
-use fuzzy_phrase::glue::{FuzzyPhraseSetBuilder, FuzzyPhraseSet, WordReplacement, EndingType};
+use fuzzy_phrase::glue::{EndingType, FuzzyPhraseSet, FuzzyPhraseSetBuilder, WordReplacement};
 
 declare_types! {
     pub class JsFuzzyPhraseSetBuilder as JsFuzzyPhraseSetBuilder for Option<FuzzyPhraseSetBuilder> {

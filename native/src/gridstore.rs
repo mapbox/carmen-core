@@ -1,14 +1,15 @@
-use carmen_core::gridstore::{coalesce, stackable, stack_and_coalesce};
+use carmen_core::gridstore::{coalesce, stack_and_coalesce, stackable};
 use carmen_core::gridstore::{
-    CoalesceContext, GridEntry, GridKey, GridStore, GridStoreBuilder, MatchOpts, MatchKey, MatchKeyWithId, PhrasematchSubquery
+    CoalesceContext, GridEntry, GridKey, GridStore, GridStoreBuilder, MatchKey, MatchKeyWithId,
+    MatchOpts, PhrasematchSubquery,
 };
 
-use neon::prelude::*;
-use neon::declare_types;
-use neon_serde::errors::Result as LibResult;
-use serde::Deserialize;
-use owning_ref::OwningHandle;
 use failure::Error;
+use neon::declare_types;
+use neon::prelude::*;
+use neon_serde::errors::Result as LibResult;
+use owning_ref::OwningHandle;
+use serde::Deserialize;
 
 use std::sync::Arc;
 
@@ -40,7 +41,7 @@ impl Task for CoalesceTask {
         };
         match neon_serde::to_value(&mut cx, converted_result) {
             Ok(v) => v.downcast::<JsArray>().or_else(|e| cx.throw_error(e.to_string())),
-            Err(e) => cx.throw_error(e.to_string())
+            Err(e) => cx.throw_error(e.to_string()),
         }
     }
 }
@@ -71,12 +72,12 @@ impl Task for StackAndCoalesceTask {
         };
         match neon_serde::to_value(&mut cx, converted_result) {
             Ok(v) => v.downcast::<JsArray>().or_else(|e| cx.throw_error(e.to_string())),
-            Err(e) => cx.throw_error(e.to_string())
+            Err(e) => cx.throw_error(e.to_string()),
         }
     }
 }
 
-type KeyIterator = OwningHandle<ArcGridStore, Box<dyn Iterator<Item=Result<GridKey, Error>>>>;
+type KeyIterator = OwningHandle<ArcGridStore, Box<dyn Iterator<Item = Result<GridKey, Error>>>>;
 
 #[derive(Deserialize, Debug, PartialEq, Clone)]
 struct GridStoreOpts {
@@ -420,19 +421,22 @@ declare_types! {
     }
 }
 
-fn langarray_to_langset<'j, C>(cx: &mut C, maybe_lang_array: Handle<'j, JsValue>) -> Result<u128, neon_serde::errors::Error>
+fn langarray_to_langset<'j, C>(
+    cx: &mut C,
+    maybe_lang_array: Handle<'j, JsValue>,
+) -> Result<u128, neon_serde::errors::Error>
 where
     C: Context<'j>,
 {
     if let Ok(lang_array) = maybe_lang_array.downcast::<JsArray>() {
         let mut out = 0u128;
         for i in 0..lang_array.len() {
-            let converted_lang_array = lang_array.get(cx, i)?.downcast::<JsNumber>().or_throw(cx)?.value() as usize;
-            if  converted_lang_array >= 128 {
+            let converted_lang_array =
+                lang_array.get(cx, i)?.downcast::<JsNumber>().or_throw(cx)?.value() as usize;
+            if converted_lang_array >= 128 {
                 continue;
             } else {
-            out = out
-                | (1 << converted_lang_array);
+                out = out | (1 << converted_lang_array);
             }
         }
         Ok(out)
@@ -465,11 +469,11 @@ pub fn js_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let phrase_subq: Vec<PhrasematchSubquery<ArcGridStore>> =
         match deserialize_phrasesubq(&mut cx, js_phrase_subq) {
             Ok(v) => v,
-            Err(e) => return cx.throw_type_error(e.to_string())
+            Err(e) => return cx.throw_type_error(e.to_string()),
         };
     let match_opts: MatchOpts = match neon_serde::from_value(&mut cx, js_match_ops) {
         Ok(v) => v,
-        Err(e) => return cx.throw_type_error(e.to_string())
+        Err(e) => return cx.throw_type_error(e.to_string()),
     };
     let cb = cx.argument::<JsFunction>(2)?;
 
@@ -485,11 +489,11 @@ pub fn js_stack_and_coalesce(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let phrase_subq: Vec<PhrasematchSubquery<ArcGridStore>> =
         match deserialize_phrasesubq(&mut cx, js_phrase_subq) {
             Ok(v) => v,
-            Err(e) => return cx.throw_type_error(e.to_string())
+            Err(e) => return cx.throw_type_error(e.to_string()),
         };
     let match_opts: MatchOpts = match neon_serde::from_value(&mut cx, js_match_ops) {
         Ok(v) => v,
-        Err(e) => return cx.throw_type_error(e.to_string())
+        Err(e) => return cx.throw_type_error(e.to_string()),
     };
     let cb = cx.argument::<JsFunction>(2)?;
 
@@ -540,10 +544,11 @@ where
         };
 
         let js_non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
-        let non_overlapping_indexes: Vec<u32> = neon_serde::from_value(cx, js_non_overlapping_indexes)?;
+        let non_overlapping_indexes: Vec<u32> =
+            neon_serde::from_value(cx, js_non_overlapping_indexes)?;
 
-        let phrase_length = js_phrasematch
-            .get(cx, "phrase")?.downcast::<JsString>().or_throw(cx)?.size() as usize;
+        let phrase_length =
+            js_phrasematch.get(cx, "phrase")?.downcast::<JsString>().or_throw(cx)?.size() as usize;
 
         let subq = PhrasematchSubquery {
             store: gridstore,
@@ -552,11 +557,14 @@ where
                 key: MatchKey { match_phrase: neon_serde::from_value(cx, match_phrase)?, lang_set },
                 id: neon_serde::from_value(cx, id)?,
                 nearby_only,
-                phrase_length
+                phrase_length,
             }],
             mask: neon_serde::from_value(cx, mask)?,
             idx: neon_serde::from_value(cx, idx)?,
-            non_overlapping_indexes: non_overlapping_indexes.into_iter().map(|n| n as usize).collect(),
+            non_overlapping_indexes: non_overlapping_indexes
+                .into_iter()
+                .map(|n| n as usize)
+                .collect(),
         };
         phrasematches.push(subq);
     }
@@ -568,7 +576,7 @@ pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let phrasematch_results: Vec<PhrasematchSubquery<ArcGridStore>> =
         match deserialize_phrasesubq(&mut cx, js_phrasematch_result) {
             Ok(v) => v,
-            Err(e) => return cx.throw_type_error(e.to_string())
+            Err(e) => return cx.throw_type_error(e.to_string()),
         };
     stackable(&phrasematch_results);
 
@@ -576,15 +584,14 @@ pub fn js_stackable(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 }
 
 #[inline(always)]
-fn prep_for_insert<'j, T: neon::object::This>(cx: &mut CallContext<'j, T>) -> Result<(GridKey, Vec<GridEntry>), neon_serde::errors::Error> {
+fn prep_for_insert<'j, T: neon::object::This>(
+    cx: &mut CallContext<'j, T>,
+) -> Result<(GridKey, Vec<GridEntry>), neon_serde::errors::Error> {
     let grid_key = cx.argument::<JsObject>(0)?;
     let grid_entry = cx.argument::<JsValue>(1)?;
     let values: Vec<GridEntry> = neon_serde::from_value(cx, grid_entry)?;
-    let phrase_id: u32 = grid_key
-        .get(cx, "phrase_id")?
-        .downcast::<JsNumber>()
-        .or_throw(cx)?
-        .value() as u32;
+    let phrase_id: u32 =
+        grid_key.get(cx, "phrase_id")?.downcast::<JsNumber>().or_throw(cx)?.value() as u32;
 
     let js_lang_set = grid_key.get(cx, "lang_set")?;
     let lang_set: u128 = langarray_to_langset(cx, js_lang_set)?;
