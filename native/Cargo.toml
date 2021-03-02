@@ -9,17 +9,19 @@ edition = "2018"
 
 [lib]
 name = "node_carmen_core"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [build-dependencies]
-neon-build = "0.2.0"
+neon-build = "0.7.1"
 
 [dependencies]
-neon = "0.2.0"
-neon-serde = "0.1.1"
+neon = "0.7.1"
+# neon-serde branch that supports neon 0.7, until https://github.com/GabrielCastro/neon-serde/pull/67 lands
+neon-serde = { git = "https://github.com/lucasfernog/neon-serde.git", rev="a9d9164f45ff65f6f64037fe8cb3490bed357580" }
 serde = "1.*"
 failure = "0.1.5"
 owning_ref = "0.4"
 fixedbitset = "0.3.0"
 rayon = "1.3.0"
 carmen-core = { path = "../" }
+fuzzy-phrase = { git = "https://github.com/mapbox/fuzzy-phrase", rev = "388e417d09f4b40f052dcf59a4a98b767c41799c" }

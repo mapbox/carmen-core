@@ -2,10 +2,10 @@ matrix:
   include:
     - language: rust
       sudo: required
-      dist: xenial
+      dist: focal
       cache: cargo
       rust:
-        - beta
+        - stable
 
       before_script:
       - rustup component add rustfmt
@@ -26,8 +26,9 @@ matrix:
     - language: node_js
       sudo: false
       os: linux
+      dist: focal
       env: BUILDTYPE=release
-      node_js: 10
+      node_js: 14
 
       cache:
         directories:
@@ -37,6 +38,8 @@ matrix:
       install:
         - node -v
         - which node
+        - python3 --version
+        - which python3
         - curl https://sh.rustup.rs -sSf > /tmp/rustup.sh
         - sh /tmp/rustup.sh -y
         - export PATH="$HOME/.cargo/bin:$PATH"
@@ -54,9 +57,9 @@ matrix:
     - language: node_js
       sudo: false
       os: osx
-      osx_image: xcode9.2
+      osx_image: xcode12.2
       env: BUILDTYPE=release
-      node_js: 10
+      node_js: 14
 
       cache:
         directories:
@@ -72,7 +75,7 @@ matrix:
         - source "$HOME/.cargo/env"
         - yarn install --ignore-scripts
         - neon clean
-        - neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
+        - travis_wait 30 neon build $([ "${BUILDTYPE}" == 'debug' ] && echo "" || echo "--release")
 
       script:
         - yarn test
