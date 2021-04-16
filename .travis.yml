@@ -19,10 +19,6 @@ matrix:
       - cargo build
       - cargo test
 
-      after_success: |
-        cargo tarpaulin --out Xml
-        bash <(curl -s https://codecov.io/bash)
-
     - language: node_js
       sudo: false
       os: linux
