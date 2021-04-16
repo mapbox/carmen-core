@@ -19,7 +19,6 @@
   "devDependencies": {
     "@mapbox/cfn-config": "^2.15.0",
     "@mapbox/cloudfriend": "^1.9.1",
-    "codecov": "^3.3.0",
     "d3-queue": "^3.0.7",
     "neon-cli": "^0.7.0",
     "nyc": "^14.0.0",
@@ -29,7 +28,7 @@
     "install": "node-pre-gyp install --fallback-to-build=false || neon build --release",
     "build": "neon build --release",
     "test": "tape ./tests/bindings/*",
-    "coverage": "nyc node -e \"require('.')\" && nyc report --reporter=text-lcov > coverage.lcov && codecov"
+    "coverage": "nyc node -e \"require('.')\" && nyc report --reporter=text-lcov > coverage.lcov"
   },
   "binary": {
     "module_name": "index",
