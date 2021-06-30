@@ -177,14 +177,17 @@ impl MatchOpts {
             None
         };
 
-        let new_bbox = [augmented.bbox, nearby_buffer, bounds].iter().fold(None, |acc, &curr| {
-           match (acc, curr) {
-               (Some(acc), Some(curr)) => Some(Self::bbox_intersect(acc, curr)),
-               (Some(acc), None) => Some(acc),
-               (None, Some(curr)) => Some(curr),
-               (None, None) => None,
-           }
-        });
+        // There are three bounding boxes at play here, each of which are optional. If there is only one, return it.
+        // If there is more than one, return the intersection of them.
+        let new_bbox =
+            [augmented.bbox, nearby_buffer, bounds].iter().fold(None, |acc, &curr| {
+                match (acc, curr) {
+                    (Some(acc), Some(curr)) => Some(Self::bbox_intersect(acc, curr)),
+                    (Some(acc), None) => Some(acc),
+                    (None, Some(curr)) => Some(curr),
+                    (None, None) => None,
+                }
+            });
 
         augmented.bbox = new_bbox;
         augmented
@@ -383,7 +386,8 @@ mod tests {
         );
 
         // test intersection of user bbox, nearby_only buffer, and bounds
-        let opts = MatchOpts { bbox: Some([75, 75, 115, 125]), proximity: Some([100, 100]), zoom: 14 };
+        let opts =
+            MatchOpts { bbox: Some([75, 75, 115, 125]), proximity: Some([100, 100]), zoom: 14 };
         assert_eq!(
             opts.augment_bbox(true, Some([100, 100, 135, 135])),
             MatchOpts { bbox: Some([100, 100, 115, 117]), proximity: Some([100, 100]), zoom: 14 }

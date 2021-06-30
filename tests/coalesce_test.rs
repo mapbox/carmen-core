@@ -770,7 +770,6 @@ fn coalesce_single_nearby_only() {
     );
 }
 
-
 #[test]
 fn coalesce_single_test_bounds() {
     let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
@@ -814,11 +813,7 @@ fn coalesce_single_test_bounds() {
     let tree_result = truncate_coalesce_results(tree_coalesce(&tree, &match_opts).unwrap());
     let result_ids: Vec<u32> =
         tree_result.iter().map(|context| context.entries[0].grid_entry.id).collect();
-    assert_eq!(
-        result_ids,
-        [4, 1, 3],
-        "Results are restricted to bounds"
-    );
+    assert_eq!(result_ids, [4, 1, 3], "Results are restricted to bounds");
 
     println!("Coalesce single - bounds with nearby_only buffer");
     let subquery = PhrasematchSubquery {
@@ -863,7 +858,12 @@ fn coalesce_single_test_bounds() {
         mask: 1 << 0,
     };
     let stack = vec![subquery];
-    let match_opts = MatchOpts { zoom: 14, proximity: Some([100, 100]), bbox: Some([40, 40, 95, 95]), ..MatchOpts::default() };
+    let match_opts = MatchOpts {
+        zoom: 14,
+        proximity: Some([100, 100]),
+        bbox: Some([40, 40, 95, 95]),
+        ..MatchOpts::default()
+    };
     let tree = stackable(&stack);
     let tree_result = truncate_coalesce_results(tree_coalesce(&tree, &match_opts).unwrap());
     let result_ids: Vec<u32> =

@@ -543,8 +543,8 @@ where
             js_nearby_only.downcast::<JsBoolean>().or_throw(cx)?.value()
         };
 
-        let js_bbox = js_phrasematch.get(cx, "bbox")?;
-        let bbox: Option<[u16; 4]> = neon_serde::from_value(cx, js_bbox)?;
+        let js_bounds = js_phrasematch.get(cx, "bounds")?;
+        let bounds: Option<[u16; 4]> = neon_serde::from_value(cx, js_bounds)?;
 
         let js_non_overlapping_indexes = js_phrasematch.get(cx, "non_overlapping_indexes")?;
         let non_overlapping_indexes: Vec<u32> =
