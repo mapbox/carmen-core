@@ -770,6 +770,111 @@ fn coalesce_single_nearby_only() {
     );
 }
 
+
+#[test]
+fn coalesce_single_test_bounds() {
+    let directory: tempfile::TempDir = tempfile::tempdir().unwrap();
+    let mut builder = GridStoreBuilder::new(directory.path()).unwrap();
+
+    let key = GridKey { phrase_id: 1, lang_set: 1 };
+
+    let entries = vec![
+        GridEntry { id: 1, x: 100, y: 100, relev: 1., score: 1, source_phrase_hash: 0 },
+        GridEntry { id: 2, x: 50, y: 50, relev: 1., score: 1, source_phrase_hash: 0 },
+        GridEntry { id: 3, x: 90, y: 90, relev: 1., score: 1, source_phrase_hash: 0 },
+        GridEntry { id: 4, x: 105, y: 105, relev: 1., score: 1, source_phrase_hash: 0 },
+        GridEntry { id: 5, x: 200, y: 200, relev: 1., score: 1, source_phrase_hash: 0 },
+    ];
+    builder.insert(&key, entries).expect("Unable to insert record");
+
+    builder.finish().unwrap();
+
+    let store =
+        GridStore::new_with_options(directory.path(), 14, 1, 200., global_bbox_for_zoom(14), 1.0)
+            .unwrap();
+
+    println!("Coalesce single - bounds");
+    let subquery = PhrasematchSubquery {
+        store: &store,
+        idx: 1,
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
+        weight: 1.,
+        match_keys: vec![MatchKeyWithId {
+            nearby_only: false,
+            id: 0,
+            key: MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 3 }, lang_set: 1 },
+            bounds: Some([80, 80, 110, 110]),
+            ..MatchKeyWithId::default()
+        }],
+        mask: 1 << 0,
+    };
+    let stack = vec![subquery];
+    let match_opts = MatchOpts { zoom: 14, proximity: None, ..MatchOpts::default() };
+    let tree = stackable(&stack);
+    let tree_result = truncate_coalesce_results(tree_coalesce(&tree, &match_opts).unwrap());
+    let result_ids: Vec<u32> =
+        tree_result.iter().map(|context| context.entries[0].grid_entry.id).collect();
+    assert_eq!(
+        result_ids,
+        [4, 1, 3],
+        "Results are restricted to bounds"
+    );
+
+    println!("Coalesce single - bounds with nearby_only buffer");
+    let subquery = PhrasematchSubquery {
+        store: &store,
+        idx: 1,
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
+        weight: 1.,
+        match_keys: vec![MatchKeyWithId {
+            nearby_only: true,
+            id: 0,
+            key: MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 3 }, lang_set: 1 },
+            bounds: Some([40, 40, 95, 95]),
+            ..MatchKeyWithId::default()
+        }],
+        mask: 1 << 0,
+    };
+    let stack = vec![subquery];
+    let match_opts = MatchOpts { zoom: 14, proximity: Some([90, 90]), ..MatchOpts::default() };
+    let tree = stackable(&stack);
+    let tree_result = truncate_coalesce_results(tree_coalesce(&tree, &match_opts).unwrap());
+    let result_ids: Vec<u32> =
+        tree_result.iter().map(|context| context.entries[0].grid_entry.id).collect();
+    assert_eq!(
+        result_ids,
+        [3],
+        "Results are restricted to the intersect of bounds and the nearby_only buffer"
+    );
+
+    println!("Coalesce single - bounds with nearby_only buffer and input bbox");
+    let subquery = PhrasematchSubquery {
+        store: &store,
+        idx: 1,
+        non_overlapping_indexes: FixedBitSet::with_capacity(128),
+        weight: 1.,
+        match_keys: vec![MatchKeyWithId {
+            nearby_only: true,
+            id: 0,
+            key: MatchKey { match_phrase: MatchPhrase::Range { start: 1, end: 3 }, lang_set: 1 },
+            bounds: Some([85, 85, 210, 210]),
+            ..MatchKeyWithId::default()
+        }],
+        mask: 1 << 0,
+    };
+    let stack = vec![subquery];
+    let match_opts = MatchOpts { zoom: 14, proximity: Some([100, 100]), bbox: Some([40, 40, 95, 95]), ..MatchOpts::default() };
+    let tree = stackable(&stack);
+    let tree_result = truncate_coalesce_results(tree_coalesce(&tree, &match_opts).unwrap());
+    let result_ids: Vec<u32> =
+        tree_result.iter().map(|context| context.entries[0].grid_entry.id).collect();
+    assert_eq!(
+        result_ids,
+        [3],
+        "Results are restricted to the intersect of bounds, the nearby_only buffer, and the input bbox"
+    );
+}
+
 #[test]
 fn coalesce_multi_test() {
     // Add more specific layer into a store
