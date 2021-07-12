@@ -513,8 +513,8 @@ pub fn tree_coalesce<T: Borrow<GridStore> + Clone + Debug + Send + Sync>(
 
                 for key_group in subquery.match_keys.iter() {
                     if is_single || !data_cache.contains_key(&key_group.id) {
-                        let match_opts = if key_group.nearby_only {
-                            step.match_opts.with_nearby_only()
+                        let match_opts = if key_group.nearby_only || key_group.bounds.is_some() {
+                            step.match_opts.augment_bbox(key_group.nearby_only, key_group.bounds)
                         } else {
                             step.match_opts.clone()
                         };

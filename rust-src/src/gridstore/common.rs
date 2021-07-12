@@ -155,35 +155,51 @@ impl MatchOpts {
         }
     }
 
-    pub fn with_nearby_only(&self) -> MatchOpts {
-        let mut constrained = self.clone();
-        let prox = if let Some(prox) = constrained.proximity {
-            prox.clone()
+    pub fn augment_bbox(&self, nearby_only: bool, bounds: Option<[u16; 4]>) -> MatchOpts {
+        let mut augmented = self.clone();
+
+        let nearby_buffer = if nearby_only {
+            match augmented.proximity {
+                None => None,
+                Some(prox) => {
+                    let miles_per_tile = EARTH_CIRC_IN_MILES / ((1 << augmented.zoom) as f64);
+                    let padding = (NEARBY_RADIUS / miles_per_tile).ceil() as u16;
+
+                    Some([
+                        if prox[0] < padding { 0 } else { prox[0] - padding }, // prevent overflows because this is unsigned
+                        if prox[1] < padding { 0 } else { prox[1] - padding }, // ditto
+                        prox[0] + padding,
+                        prox[1] + padding,
+                    ])
+                }
+            }
         } else {
-            return constrained;
+            None
         };
 
-        let miles_per_tile = EARTH_CIRC_IN_MILES / ((1 << constrained.zoom) as f64);
-        let padding = (NEARBY_RADIUS / miles_per_tile).ceil() as u16;
+        // There are three bounding boxes at play here, each of which are optional. If there is only one, return it.
+        // If there is more than one, return the intersection of them.
+        let new_bbox =
+            [augmented.bbox, nearby_buffer, bounds].iter().fold(None, |acc, &curr| {
+                match (acc, curr) {
+                    (Some(acc), Some(curr)) => Some(Self::bbox_intersect(acc, curr)),
+                    (Some(acc), None) => Some(acc),
+                    (None, Some(curr)) => Some(curr),
+                    (None, None) => None,
+                }
+            });
 
-        let mut new_box: [u16; 4] = [
-            if prox[0] < padding { 0 } else { prox[0] - padding }, // prevent overflows because this is unsigned
-            if prox[1] < padding { 0 } else { prox[1] - padding }, // ditto
-            prox[0] + padding,
-            prox[1] + padding,
-        ];
+        augmented.bbox = new_bbox;
+        augmented
+    }
 
-        if let Some(old_box) = constrained.bbox {
-            new_box = [
-                std::cmp::max(old_box[0], new_box[0]),
-                std::cmp::max(old_box[1], new_box[1]),
-                std::cmp::min(old_box[2], new_box[2]),
-                std::cmp::min(old_box[3], new_box[3]),
-            ]
-        }
-
-        constrained.bbox = Some(new_box);
-        constrained
+    fn bbox_intersect(left: [u16; 4], right: [u16; 4]) -> [u16; 4] {
+        [
+            std::cmp::max(left[0], right[0]),
+            std::cmp::max(left[1], right[1]),
+            std::cmp::min(left[2], right[2]),
+            std::cmp::min(left[3], right[3]),
+        ]
     }
 }
 
@@ -334,20 +350,20 @@ mod tests {
     fn nearby_only() {
         let opts = matchopts_proximity_generator([100, 100], 14);
         assert_eq!(
-            opts.with_nearby_only(),
+            opts.augment_bbox(true, None),
             MatchOpts { bbox: Some([83, 83, 117, 117]), proximity: Some([100, 100]), zoom: 14 }
         );
 
         let opts = matchopts_proximity_generator([100, 100], 6);
         assert_eq!(
-            opts.with_nearby_only(),
+            opts.augment_bbox(true, None),
             MatchOpts { bbox: Some([99, 99, 101, 101]), proximity: Some([100, 100]), zoom: 6 }
         );
 
         // truncate at the antemeridian
         let opts = matchopts_proximity_generator([5, 5], 14);
         assert_eq!(
-            opts.with_nearby_only(),
+            opts.augment_bbox(true, None),
             MatchOpts { bbox: Some([0, 0, 22, 22]), proximity: Some([5, 5]), zoom: 14 }
         );
 
@@ -355,8 +371,40 @@ mod tests {
         let mut opts = matchopts_proximity_generator([100, 100], 14);
         opts.bbox = Some([90, 70, 115, 180]);
         assert_eq!(
-            opts.with_nearby_only(),
+            opts.augment_bbox(true, None),
             MatchOpts { bbox: Some([90, 83, 115, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+    }
+
+    #[test]
+    fn bounds() {
+        // test bounds are properly set on match_opts
+        let opts = MatchOpts { bbox: None, proximity: None, zoom: 14 };
+        assert_eq!(
+            opts.augment_bbox(false, Some([1, 2, 3, 4])),
+            MatchOpts { bbox: Some([1, 2, 3, 4]), proximity: None, zoom: 14 }
+        );
+
+        // test intersection of user bbox, nearby_only buffer, and bounds
+        let opts =
+            MatchOpts { bbox: Some([75, 75, 115, 125]), proximity: Some([100, 100]), zoom: 14 };
+        assert_eq!(
+            opts.augment_bbox(true, Some([100, 100, 135, 135])),
+            MatchOpts { bbox: Some([100, 100, 115, 117]), proximity: Some([100, 100]), zoom: 14 }
+        );
+
+        // test intersection of nearby_only buffer and bounds
+        let opts = MatchOpts { bbox: None, proximity: Some([60, 60]), zoom: 14 };
+        assert_eq!(
+            opts.augment_bbox(true, Some([50, 50, 80, 80])),
+            MatchOpts { bbox: Some([50, 50, 77, 77]), proximity: Some([60, 60]), zoom: 14 }
+        );
+
+        // nearby_only buffer not applied without a proximity point
+        let opts = MatchOpts { bbox: Some([60, 60, 70, 70]), proximity: None, zoom: 14 };
+        assert_eq!(
+            opts.augment_bbox(true, Some([50, 50, 75, 75])),
+            MatchOpts { bbox: Some([60, 60, 70, 70]), proximity: None, zoom: 14 }
         );
     }
 }
@@ -453,6 +501,7 @@ pub struct MatchKeyWithId {
     pub id: u32,
     #[serde(default)]
     pub phrase_length: usize,
+    pub bounds: Option<[u16; 4]>,
 }
 
 impl Default for MatchKeyWithId {
@@ -464,6 +513,7 @@ impl Default for MatchKeyWithId {
             // default is 2 because 1 has special behaviors that we might not want to opt into
             // in the typical test case
             phrase_length: 2,
+            bounds: None,
         }
     }
 }

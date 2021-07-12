@@ -582,7 +582,7 @@ dependencies = [
 [[package]]
 name = "neon-serde"
 version = "0.4.0"
-source = "git+https://github.com/lucasfernog/neon-serde.git?rev=a9d9164f45ff65f6f64037fe8cb3490bed357580#a9d9164f45ff65f6f64037fe8cb3490bed357580"
+source = "git+https://github.com/mattciferri/neon-serde.git?rev=a9d9164f45ff65f6f64037fe8cb3490bed357580#a9d9164f45ff65f6f64037fe8cb3490bed357580"
 dependencies = [
  "error-chain",
  "neon",
