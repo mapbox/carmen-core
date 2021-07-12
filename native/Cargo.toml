@@ -17,7 +17,7 @@ neon-build = "0.7.1"
 [dependencies]
 neon = "0.7.1"
 # neon-serde branch that supports neon 0.7, until https://github.com/GabrielCastro/neon-serde/pull/67 lands
-neon-serde = { git = "https://github.com/lucasfernog/neon-serde.git", rev="a9d9164f45ff65f6f64037fe8cb3490bed357580" }
+neon-serde = { git = "https://github.com/mattciferri/neon-serde.git", rev="a9d9164f45ff65f6f64037fe8cb3490bed357580" }
 serde = "1.*"
 failure = "0.1.5"
 owning_ref = "0.4"
